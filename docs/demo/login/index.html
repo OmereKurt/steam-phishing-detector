@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sign In - Steam Community</title>
+  <style>
+    body { margin: 0; font-family: "Motiva Sans", Arial, sans-serif;
+           background: #1b2838; color: #c7d5e0; }
+    .chrome { background: #171a21; padding: 12px 32px; font-size: 13px; color: #b8b6b4; }
+    .wrap { max-width: 420px; margin: 90px auto; }
+    h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px;
+         color: #fff; font-weight: 400; border-bottom: 1px solid #2a3f5a; padding-bottom: 8px; }
+    label { display: block; font-size: 13px; margin: 16px 0 4px; color: #8f98a0; }
+    input { width: 100%; box-sizing: border-box; padding: 9px; border: 0;
+            background: #32353c; color: #fff; font-size: 14px; }
+    button { margin-top: 20px; width: 100%; padding: 10px; border: 0; cursor: pointer;
+             background: linear-gradient(to right, #75b022, #588a1b); color: #fff;
+             font-size: 15px; border-radius: 2px; }
+    .disclaimer { max-width: 420px; margin: 40px auto; padding: 14px;
+                  border: 1px dashed #56707f; font-size: 12px; line-height: 1.6; color: #8f98a0; }
+  </style>
+</head>
+<body>
+  <div class="chrome"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="Steam logo" width="1" height="1" /> STORE &nbsp; COMMUNITY &nbsp; ABOUT &nbsp; SUPPORT</div>
+
+  <div class="wrap">
+    <h2>Sign in with account name</h2>
+    <form onsubmit="return false;">
+      <label for="username">Account name</label>
+      <input id="username" name="username" type="text" autocomplete="off" />
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="off" />
+      <button type="submit">Sign in</button>
+    </form>
+  </div>
+
+  <div class="disclaimer">
+    <strong>Local demo fixture.</strong> This is a mock Steam sign-in page served from
+    localhost so the extension's warning banner can be exercised and screenshotted.
+    It sends nothing anywhere, and the password field is inert. Run it with
+    <code>npm run demo</code>.
+  </div>
+
+  <script>
+    // Minimal chrome.* stub. The extension talks to the service worker for the
+    // toolbar badge; outside a real extension those APIs do not exist.
+    window.chrome = window.chrome || {
+      runtime: {
+        sendMessage: function (msg) { console.log("[demo] verdict ->", msg); },
+        onMessage: { addListener: function () {} }
+      }
+    };
+  </script>
+  <script src="../../../chrome-extension/scoring.js"></script>
+  <script src="../../../chrome-extension/content.js"></script>
+</body>
+</html>

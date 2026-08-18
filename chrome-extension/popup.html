@@ -5,38 +5,42 @@
   <title>Steam Phishing Detector</title>
   <style>
     body {
-      font-family: system-ui, sans-serif;
-      background: #f9fafb;
-      color: #111;
-      width: 260px;
-      padding: 12px;
-      text-align: center;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #1b2838; color: #e8eef4;
+      width: 320px; margin: 0; padding: 14px;
     }
-    h1 {
-      font-size: 16px;
-      margin-bottom: 8px;
-      color: #1b2838;
+    h1 { font-size: 14px; margin: 0 0 10px; font-weight: 600; letter-spacing: 0.2px; }
+    #host { font-size: 12px; color: #8fa6bb; word-break: break-all; margin-bottom: 12px; }
+    #verdict {
+      border-radius: 6px; padding: 10px 12px; margin-bottom: 10px;
+      background: #2a3f5a; border-left: 4px solid #4c6b22;
     }
-    p {
-      font-size: 13px;
-      margin: 6px 0 12px;
+    #verdict.block   { border-left-color: #b3202c; }
+    #verdict.caution { border-left-color: #ffcc00; }
+    #label { font-weight: 700; font-size: 14px; }
+    #score { font-size: 12px; color: #b9cbdb; margin-top: 2px; }
+    ul { margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: #cfdcea; }
+    li { margin: 3px 0; }
+    button {
+      width: 100%; border: 0; border-radius: 4px; padding: 8px;
+      background: #3a6a8f; color: #fff; font: 600 13px system-ui, sans-serif;
+      cursor: pointer;
     }
-    a {
-      color: #0078d7;
-      text-decoration: none;
-    }
-    .note {
-      font-size: 12px;
-      color: #444;
-    }
+    button:hover { background: #4a7fa8; }
+    .note { font-size: 11px; color: #7f97ad; margin-top: 10px; line-height: 1.4; }
   </style>
 </head>
 <body>
-  <h1>🔒 Steam Phishing Detector</h1>
-  <p>This extension scans visited URLs and warns you if a site imitates official Steam login pages.</p>
-  <div class="note">
-    Stay safe — always verify the domain before signing in.<br />
-    <a href="https://steamcommunity.com" target="_blank">Official Steam Site</a>
+  <h1>&#128274; Steam Phishing Detector</h1>
+  <div id="host">Reading current tab&hellip;</div>
+  <div id="verdict">
+    <div id="label">Checking&hellip;</div>
+    <div id="score"></div>
+    <ul id="reasons"></ul>
   </div>
+  <button id="checkButton" type="button">Re-check this page</button>
+  <div class="note" id="note"></div>
+  <script src="scoring.js"></script>
+  <script src="popup.js"></script>
 </body>
 </html>
