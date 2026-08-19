@@ -76,7 +76,7 @@
     { "url": "hxxps://sfeamcommunity[.]com/login", "label": "phishing", "category": "typosquat", "pageSignals": { "hasCredentialField": true, "title": "Steam Community" }, "note": "Adjacent-key substitution, t -> f." },
     { "url": "hxxps://steampowered[.]co/account/", "label": "phishing", "category": "typosquat", "pageSignals": { "hasCredentialField": true, "title": "Steam Account" } },
     { "url": "hxxps://steamcommunity[.]org/market/listings/730/", "label": "phishing", "category": "typosquat", "pageSignals": { "hasCredentialField": true, "title": "Steam Community Market" } },
-    { "url": "hxxps://steamgames[.]net/login/", "label": "phishing", "category": "typosquat", "pageSignals": { "hasCredentialField": true, "title": "Steam" } },
+    { "url": "hxxps://steamgames[.]net/login/", "label": "phishing", "category": "brand-abuse", "pageSignals": { "hasCredentialField": true, "title": "Steam" }, "note": "KNOWN MISS, deliberately. steamgames.com is allowlisted but is NOT an impersonation target -- nobody types a Steam password into it. Treating it as one cost three real false positives per million in the Tranco benchmark (stargames.de, dreamgames.com and similar sit two edits from the generic label steamgames). Reclassified from typosquat to brand-abuse when that trade was made." },
 
     { "url": "hxxps://stеamcommunity[.]com/login", "label": "phishing", "category": "homoglyph", "pageSignals": { "hasCredentialField": true, "title": "Steam Community" }, "note": "Cyrillic U+0435 in place of Latin e. Byte-different, pixel-identical." },
     { "url": "hxxps://steamcommunlty[.]com/login", "label": "phishing", "category": "homoglyph", "pageSignals": { "hasCredentialField": true, "title": "Steam Community" }, "note": "l for i." },

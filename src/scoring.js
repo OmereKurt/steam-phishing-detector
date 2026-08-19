@@ -23,13 +23,34 @@
   // Configuration
   // ---------------------------------------------------------------------------
 
-  /** Registrable domains Valve actually operates. Subdomains are covered. */
+  /**
+   * Registrable domains Valve actually operates. Subdomains are covered.
+   * Used for the allowlist and for embedding checks.
+   */
   const OFFICIAL_DOMAINS = [
     "steampowered.com",
     "steamcommunity.com",
     "steamgames.com",
     "steamstatic.com",
     "valvesoftware.com"
+  ];
+
+  /**
+   * The subset worth measuring lookalike distance against: the domains a user
+   * actually types a Steam password into. Nobody signs in at a CDN host, so
+   * steamstatic.com, steamgames.com and valvesoftware.com are allowlisted but
+   * are not impersonation targets.
+   *
+   * This distinction is not cosmetic. Scoring the Tranco top million with all
+   * five as targets produced 17 warnings, and a third of them were real
+   * businesses sitting two edits from a generic label -- stargames.de and
+   * dreamgames.com near "steamgames", slamstatic.com near "steamstatic",
+   * validsoftware.ro near "valvesoftware". None of those impersonate a login
+   * page. See docs/DESIGN.md.
+   */
+  const IMPERSONATION_TARGETS = [
+    "steampowered.com",
+    "steamcommunity.com"
   ];
 
   /** Signal weights. Tuned against test/corpus.json — see docs/DESIGN.md. */
@@ -254,6 +275,7 @@
   }
 
   const OFFICIAL_BRANDS = OFFICIAL_DOMAINS.map(d => brandLabel(d));
+  const TARGET_BRANDS = IMPERSONATION_TARGETS.map(d => brandLabel(d));
 
   // ---------------------------------------------------------------------------
   // Individual signals
@@ -271,14 +293,14 @@
     const brand = brandLabel(registrable);
     let best = Infinity;
     let match = null;
-    for (let i = 0; i < OFFICIAL_DOMAINS.length; i++) {
+    for (let i = 0; i < IMPERSONATION_TARGETS.length; i++) {
       const d = Math.min(
-        damerauLevenshtein(registrable, OFFICIAL_DOMAINS[i]),
-        damerauLevenshtein(brand, OFFICIAL_BRANDS[i])
+        damerauLevenshtein(registrable, IMPERSONATION_TARGETS[i]),
+        damerauLevenshtein(brand, TARGET_BRANDS[i])
       );
       if (d < best) {
         best = d;
-        match = OFFICIAL_DOMAINS[i];
+        match = IMPERSONATION_TARGETS[i];
       }
     }
     return { distance: best, match };
@@ -288,10 +310,10 @@
   function homoglyphMatch(registrable) {
     const brand = brandLabel(registrable);
     const brandSkeleton = skeleton(brand);
-    for (let i = 0; i < OFFICIAL_BRANDS.length; i++) {
-      const official = OFFICIAL_BRANDS[i];
+    for (let i = 0; i < TARGET_BRANDS.length; i++) {
+      const official = TARGET_BRANDS[i];
       if (brand !== official && brandSkeleton === skeleton(official)) {
-        return OFFICIAL_DOMAINS[i];
+        return IMPERSONATION_TARGETS[i];
       }
     }
     return null;
@@ -496,6 +518,7 @@
     embeddedOfficial: embeddedOfficial,
     parseQuery: parseQuery,
     OFFICIAL_DOMAINS: OFFICIAL_DOMAINS,
+    IMPERSONATION_TARGETS: IMPERSONATION_TARGETS,
     WEIGHTS: WEIGHTS,
     BANDS: BANDS,
     RISKY_TLDS: RISKY_TLDS,

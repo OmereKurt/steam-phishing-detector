@@ -14,6 +14,8 @@
     "eval:misses": "node scripts/evaluate.js --misses",
     "sync": "node scripts/sync-extension.js",
     "sync:check": "node scripts/sync-extension.js --check",
-    "demo": "node scripts/demo.js"
+    "demo": "node scripts/demo.js",
+    "discover": "node scripts/discover.js",
+    "benchmark": "node scripts/benchmark.js"
   }
 }

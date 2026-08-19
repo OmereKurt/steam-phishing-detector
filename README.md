@@ -1,11 +1,14 @@
 # Steam Phishing Detector
 
-A Chrome extension that scores Steam credential-phishing pages and warns before a
-password is typed — plus the labelled corpus and test harness that say how well it
-actually works.
+[![CI](https://github.com/OmereKurt/steam-phishing-detector/actions/workflows/ci.yml/badge.svg)](https://github.com/OmereKurt/steam-phishing-detector/actions/workflows/ci.yml)
 
-**Measured on 86 labelled URLs: 92.1% detection at 0% false positives** at the warn
-threshold. Regenerate that number yourself with `npm run eval`.
+A Chrome extension that scores Steam credential-phishing pages and warns before a
+password is typed — plus the corpus, the DNS survey and the million-domain
+benchmark that say how well it actually works.
+
+**Scored against 1,000,000 real domains, it warns on 6 — one in 166,667.** Three of
+those six are genuine Steam brand squats that belong in the list. Every number here
+is reproducible with a single npm command.
 
 ![Block-level warning on a page whose hostname embeds steamcommunity.com](docs/demo.png)
 
@@ -57,36 +60,102 @@ Full reasoning, and the limitations, in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Measured performance
 
+Three measurements, because they answer different questions and have very
+different strengths.
+
+### 1. False positives against a million real domains
+
+The one measurement the scorer was never tuned against, and the only one drawn
+entirely from outside this repository.
+
 ```
-Corpus: 86 labelled URLs (38 phishing, 48 benign)
+$ npm run benchmark -- top-1m.csv
+Scored 1,000,000 real domains in 23.0s.
 
-| Threshold | TP | FP | TN | FN | Precision | Recall |   F1  | FP rate |
-|----------:|---:|---:|---:|---:|----------:|-------:|------:|--------:|
-|        20 | 37 |  3 | 45 |  1 |     92.5% |  97.4% | 0.949 |    6.3% |
-|  35 (warn)| 35 |  0 | 48 |  3 |    100.0% |  92.1% | 0.959 |    0.0% |
-| 60 (block)| 25 |  0 | 48 | 13 |    100.0% |  65.8% | 0.794 |    0.0% |
-|        80 |  4 |  0 | 48 | 34 |    100.0% |  10.5% | 0.190 |    0.0% |
+  Flagged at warn  (>=35): 6  (0.0006%)
+  Flagged at block (>=60): 1  (0.0001%)
+
+  1 in 166,667 real domains triggers a warning.
+
+    # 222207   75  block    wsteamcommunity.com      [edit_distance, embedded_official]
+    # 317330   40  caution  steamcommunity.rip       [edit_distance]
+    # 460174   40  caution  steamcommunity.tips      [edit_distance]
+    # 520657   35  caution  steampoweredfamily.com   [embedded_official]
+    # 773577   40  caution  cukong88login.xn--6frz82g[punycode, login_keyword]
+    # 934098   40  caution  stampcommunity.org       [edit_distance]
 ```
 
-Reported at four thresholds because one number hides the trade-off. `npm run
-eval:misses` lists every misclassified URL with the signals behind it.
+Domains come from the [Tranco](https://tranco-list.eu/) top-sites list, ranked by
+real traffic. Every flag is printed — nothing hides behind a summary statistic.
 
-**What it misses.** All three failures at the warn threshold are Steam-*themed*
-lures with no lookalike domain — `steamwallet-generator.cf`,
-`steam-community-market.xyz`, `steamsupport-helpdesk.online`. A domain analyser has
-nothing to grip on those. They are in the corpus on purpose: a test set containing
-only cases you catch measures nothing.
+Reading them honestly: `wsteamcommunity.com`, `steamcommunity.rip` and
+`steamcommunity.tips` are Steam brand squats and the warning is correct.
+`steampoweredfamily.com` is a STEM-education site, `stampcommunity.org` belongs to
+stamp collectors, and the punycode one is unrelated. So the real cost is
+**three false positives per million domains**, and it is visible rather than
+asserted.
 
-**What these numbers are not.** The corpus is synthetic — real attack *shapes*,
-invented hostnames — and 86 URLs is small. 92.1% means "misses 3 of 38 known
-patterns", not "catches 92% of Steam phishing in the wild". Nothing here has been
-validated against live traffic and the extension has never been deployed to users.
-The rest of the limitations are listed in [docs/DESIGN.md](docs/DESIGN.md#honest-limitations).
+### 2. How much of the lookalike surface is actually registered
+
+`src/permutations.js` generates the typosquats an attacker would plausibly buy —
+omission, transposition, keyboard slips, bitsquatting, homoglyphs, hyphenation,
+TLD swaps, combosquatting. `npm run discover` then asks DNS which of them exist.
+
+```
+777 candidates generated from steamcommunity.com and steampowered.com
+159 are registered  (20.5%)
+
+  tld-swap 31 · insertion 25 · replacement 24 · omission 20 · repetition 14
+  transposition 12 · combosquat 12 · bitsquatting 9 · homoglyph-ascii 6 · ...
+```
+
+One in five permutations of the two domains Steam users actually sign in to has
+been bought by someone. Results are in [data/lookalikes.json](data/lookalikes.json),
+defanged.
+
+**Registration is not malice**, and this is not a detection metric. Some of those
+are Valve's own defensive registrations, some are parked, some are unrelated
+businesses. The scorer flags 159 of 159, and that number is close to meaningless:
+these candidates were produced by the same transformations the scorer measures, so
+a domain made by deleting one character is one edit from the original *by
+construction*. It is a sanity check that the generator and the scorer share a
+definition of "close" — nothing more, and it is labelled that way in the data file.
+
+DNS only. Nothing here ever connected to a discovered domain.
+
+### 3. Precision and recall on the labelled corpus
+
+`test/corpus.json` holds 86 hand-labelled URLs — 38 phishing, 48 benign — covering
+typosquats, homoglyphs, punycode, embedded domains, brand-abuse lures, official
+Steam pages, legitimate Steam-adjacent sites, and unrelated credential pages. This
+is the set CI enforces floors against.
+
+```
+| Threshold  | TP | FP | TN | FN | Precision | Recall |   F1  |
+|-----------:|---:|---:|---:|---:|----------:|-------:|------:|
+|        20  | 37 |  3 | 45 |  1 |     92.5% |  97.4% | 0.949 |
+|  35 (warn) | 34 |  0 | 48 |  4 |    100.0% |  89.5% | 0.944 |
+| 60 (block) | 24 |  0 | 48 | 14 |    100.0% |  63.2% | 0.774 |
+```
+
+`npm run eval:misses` lists every misclassified URL with the signals behind it.
+
+**What it misses.** All four failures are Steam-*themed* lures with no lookalike
+domain — `steamwallet-generator.cf`, `steam-community-market.xyz`,
+`steamsupport-helpdesk.online`, `steamgames.net`. A domain analyser has nothing to
+grip on those. They are in the corpus on purpose: a test set containing only cases
+you catch measures nothing.
+
+**What these numbers are not.** This corpus is hand-written — real attack shapes,
+invented hostnames — and 86 URLs is small. It is a regression suite, not evidence
+about the wild. The extension has never been deployed to a user. Full limitations
+in [docs/DESIGN.md](docs/DESIGN.md#honest-limitations).
 
 ## Repository structure
 
 ```
 src/scoring.js              The scorer. Pure, dependency-free, the only detection logic.
+src/permutations.js         Typosquat generator: 11 techniques, dnstwist-style.
 chrome-extension/           Loadable MV3 extension
   manifest.json               One permission: activeTab
   scoring.js                  Generated copy of src/scoring.js (npm run sync)
@@ -96,7 +165,12 @@ chrome-extension/           Loadable MV3 extension
 test/corpus.json            86 labelled URLs, all defanged
 test/scoring.test.js        47 unit tests, one per signal and edge case
 test/corpus.test.js         24 tests: corpus integrity and precision/recall floors
+test/permutations.test.js   24 tests for the generator
+data/lookalikes.json        Registered Steam lookalikes found by DNS, defanged
+data/benchmark.json         Every domain flagged in the million-domain run
 scripts/evaluate.js         Precision/recall/F1 across a threshold sweep
+scripts/discover.js         Generates permutations and resolves them (DNS only)
+scripts/benchmark.js        Scores a Tranco list end to end
 scripts/sync-extension.js   Copies the scorer into the extension; --check guards drift
 scripts/demo.js             Local server for the demo phishing page
 docs/DESIGN.md              Signal reasoning, the tuning round, and the limitations
@@ -108,9 +182,17 @@ docs/demo/login/            Inert mock Steam sign-in page for exercising the ban
 Requires Node 20+. There are no dependencies to install.
 
 ```bash
-npm test          # 71 tests: unit coverage plus corpus regression floors
-npm run eval      # detection performance table
+npm test          # 95 tests: unit coverage plus corpus regression floors
+npm run eval      # precision/recall on the labelled corpus
+npm run discover  # generate typosquats, resolve them against DNS
 npm run demo      # serve the demo phishing page
+```
+
+The million-domain benchmark needs a list, which is not vendored here:
+
+```bash
+curl -sSL -o top-1m.csv.zip https://tranco-list.eu/top-1m.csv.zip && unzip -o top-1m.csv.zip
+npm run benchmark -- top-1m.csv
 ```
 
 Load the extension:

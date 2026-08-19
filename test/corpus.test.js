@@ -183,6 +183,6 @@ test("per-category behaviour", async t => {
     const missed = byCategory("brand-abuse").filter(
       x => x.result.score < scoring.BANDS.CAUTION
     );
-    assert.strictEqual(missed.length, 3, "missed: " + missed.map(x => x.entry.defangedUrl).join(", "));
+    assert.strictEqual(missed.length, 4, "missed: " + missed.map(x => x.entry.defangedUrl).join(", "));
   });
 });

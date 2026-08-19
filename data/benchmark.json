@@ -1,0 +1,73 @@
+{
+  "_readme": [
+    "False-positive benchmark against a Tranco top-sites list.",
+    "Every flagged domain is listed below for inspection -- nothing is hidden",
+    "behind a summary statistic. Domains are recorded as ranked, not defanged,",
+    "because these are legitimate popular sites."
+  ],
+  "generatedAt": "2026-08-19",
+  "listFile": "top-1m.csv",
+  "domainsScored": 1000000,
+  "flaggedAtWarn": 6,
+  "flaggedAtBlock": 1,
+  "falsePositiveRateWarn": 0.000006,
+  "falsePositiveRateBlock": 0.000001,
+  "flagged": [
+    {
+      "rank": 222207,
+      "domain": "wsteamcommunity.com",
+      "score": 75,
+      "verdict": "block",
+      "reasons": [
+        "edit_distance",
+        "embedded_official"
+      ]
+    },
+    {
+      "rank": 317330,
+      "domain": "steamcommunity.rip",
+      "score": 40,
+      "verdict": "caution",
+      "reasons": [
+        "edit_distance"
+      ]
+    },
+    {
+      "rank": 460174,
+      "domain": "steamcommunity.tips",
+      "score": 40,
+      "verdict": "caution",
+      "reasons": [
+        "edit_distance"
+      ]
+    },
+    {
+      "rank": 520657,
+      "domain": "steampoweredfamily.com",
+      "score": 35,
+      "verdict": "caution",
+      "reasons": [
+        "embedded_official"
+      ]
+    },
+    {
+      "rank": 773577,
+      "domain": "cukong88login.xn--6frz82g",
+      "score": 40,
+      "verdict": "caution",
+      "reasons": [
+        "punycode",
+        "login_keyword"
+      ]
+    },
+    {
+      "rank": 934098,
+      "domain": "stampcommunity.org",
+      "score": 40,
+      "verdict": "caution",
+      "reasons": [
+        "edit_distance"
+      ]
+    }
+  ]
+}
