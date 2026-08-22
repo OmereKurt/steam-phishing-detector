@@ -180,9 +180,14 @@ test("per-category behaviour", async t => {
     // These carry no lookalike domain at all, so the scorer has little to grip.
     // The test pins how many it misses: if a change fixes one, this fails and
     // the number gets revised down deliberately.
+    //
+    // Revised 4 -> 3 when official_tld_swap landed. steamgames.net was never
+    // really a brand-abuse lure: it is the exact label Valve publishes on a
+    // suffix it does not use, and an exact-label check catches it. The three
+    // that remain carry no relationship to a Valve domain at all.
     const missed = byCategory("brand-abuse").filter(
       x => x.result.score < scoring.BANDS.CAUTION
     );
-    assert.strictEqual(missed.length, 4, "missed: " + missed.map(x => x.entry.defangedUrl).join(", "));
+    assert.strictEqual(missed.length, 3, "missed: " + missed.map(x => x.entry.defangedUrl).join(", "));
   });
 });

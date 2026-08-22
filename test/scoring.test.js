@@ -284,3 +284,66 @@ test("input handling", async t => {
     assert.strictEqual(JSON.stringify(signals), snapshot);
   });
 });
+
+// ---------------------------------------------------------------------------
+test("official label on an unofficial suffix", async t => {
+  await t.test("fires on a Valve label resold under another TLD", () => {
+    // The three official labels that are deliberately NOT impersonation
+    // targets. steampowered.co and steamcommunity.co are covered by
+    // edit_distance instead -- see the non-stacking test below.
+    for (const host of ["steamgames.net", "steamstatic.io", "valvesoftware.net"]) {
+      assert.ok(
+        ids("https://" + host + "/").includes("official_tld_swap"),
+        host + " should fire official_tld_swap"
+      );
+    }
+  });
+
+  await t.test("a suffix swap on an impersonation target is still caught, by edit_distance", () => {
+    // Coverage is not lost by the non-stacking rule: these score higher than
+    // official_tld_swap would have given them.
+    for (const host of ["steampowered.co", "steamcommunity.net"]) {
+      const result = s.score("https://" + host + "/");
+      assert.ok(ids("https://" + host + "/").includes("edit_distance"), host);
+      assert.ok(result.score >= W.OFFICIAL_TLD_SWAP, host + " scored " + result.score);
+    }
+  });
+
+  await t.test("carries its weight", () => {
+    const result = s.score("https://steamgames.net/");
+    assert.strictEqual(result.score, W.OFFICIAL_TLD_SWAP);
+  });
+
+  await t.test("the official domains themselves stay silent", () => {
+    for (const host of ["steamgames.com", "steamstatic.com", "valvesoftware.com"]) {
+      const result = s.score("https://" + host + "/");
+      assert.strictEqual(result.verdict, "silent", host);
+      assert.strictEqual(result.score, 0, host);
+    }
+  });
+
+  await t.test("subdomains of a swapped label still fire", () => {
+    assert.ok(ids("https://login.steamgames.net/").includes("official_tld_swap"));
+  });
+
+  await t.test("does not stack with edit_distance on the same evidence", () => {
+    // steamcommunity.rip is zero edits from an impersonation target and is an
+    // exact official label. Scoring both would count one fact twice and push a
+    // known caution-level squat into block.
+    const fired = ids("https://steamcommunity.rip/");
+    assert.ok(fired.includes("edit_distance"));
+    assert.ok(!fired.includes("official_tld_swap"));
+    assert.strictEqual(s.score("https://steamcommunity.rip/").score, W.EDIT_DISTANCE);
+  });
+
+  await t.test("ignores domains that merely contain a Valve label", () => {
+    // Substring matching would flag all of these. The check is on the
+    // registrable label exactly, not on containment.
+    for (const host of ["steamgamesreview.com", "mysteamgames.net", "steamgames.example.org"]) {
+      assert.ok(
+        !ids("https://" + host + "/").includes("official_tld_swap"),
+        host + " should not fire official_tld_swap"
+      );
+    }
+  });
+});

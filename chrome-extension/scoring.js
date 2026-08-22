@@ -66,6 +66,7 @@
     EDIT_DISTANCE: 40,
     HOMOGLYPH: 35,
     EMBEDDED_OFFICIAL: 35,
+    OFFICIAL_TLD_SWAP: 30,
     PUNYCODE: 30,
     BRANDING: 15,
     RISKY_TLD: 10,
@@ -315,6 +316,24 @@
   }
 
   /** Same visual skeleton as an official brand, but not the same characters. */
+  /**
+   * The registrable label is one Valve actually uses, on a TLD Valve does not.
+   *
+   * This exists because IMPERSONATION_TARGETS is deliberately narrower than
+   * OFFICIAL_DOMAINS: measuring edit distance against steamgames.com and
+   * steamstatic.com produced real false positives (stargames.de, dreamgames.com,
+   * slamstatic.com), so those domains are allowlisted but not scored against.
+   * That left a gap. steamgames.net is not a typo of anything -- it is the exact
+   * label Valve publishes, resold under a different suffix -- and nothing scored
+   * it. An exact label match needs no distance metric, so it reintroduces the
+   * missing coverage without the near-miss false positives that closing the gap
+   * with edit distance would have cost.
+   */
+  function officialLabelTldSwap(registrable) {
+    const brand = brandLabel(registrable);
+    return OFFICIAL_BRANDS.indexOf(brand) === -1 ? null : brand;
+  }
+
   function homoglyphMatch(registrable) {
     const brand = brandLabel(registrable);
     const brandSkeleton = skeleton(brand);
@@ -456,11 +475,24 @@
     const urlText = hostname + pathAndQuery;
 
     const lookalike = lookalikeDistance(registrable);
-    if (lookalike.distance <= MAX_LOOKALIKE_DISTANCE) {
+    const nearTarget = lookalike.distance <= MAX_LOOKALIKE_DISTANCE;
+    if (nearTarget) {
       reasons.push(reason(
         "edit_distance",
         WEIGHTS.EDIT_DISTANCE,
         "Damerau-Levenshtein distance " + lookalike.distance + " from " + lookalike.match
+      ));
+    }
+
+    // Only when edit distance did not already fire. A label that is an exact
+    // official label is also zero edits from one, so scoring both would count
+    // the same evidence twice and push known squats from caution into block.
+    const tldSwap = nearTarget ? null : officialLabelTldSwap(registrable);
+    if (tldSwap) {
+      reasons.push(reason(
+        "official_tld_swap",
+        WEIGHTS.OFFICIAL_TLD_SWAP,
+        tldSwap + " is a domain label Valve publishes, on a suffix it does not use"
       ));
     }
 
