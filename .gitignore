@@ -137,3 +137,9 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# The Tranco list the benchmark runs against. README tells you to download it
+# into the repository root; it is ~40MB and changes daily, so it is fetched
+# rather than vendored.
+top-1m.csv
+top-1m.csv.zip
