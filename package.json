@@ -1,6 +1,6 @@
 {
   "name": "steam-phishing-detector",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Chrome extension that scores Steam credential-phishing pages, with a labelled corpus and a measured detection rate.",
   "license": "MIT",
   "author": "Omer Kurt",

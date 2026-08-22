@@ -6,9 +6,9 @@ A Chrome extension that scores Steam credential-phishing pages and warns before 
 password is typed — plus the corpus, the DNS survey and the million-domain
 benchmark that say how well it actually works.
 
-**Scored against 1,000,000 real domains, it warns on 6 — one in 166,667.** Three of
-those six are genuine Steam brand squats that belong in the list. Every number here
-is reproducible with a single npm command.
+**Scored against 1,000,000 real domains, it warns on 7 — one in 142,857.** Three of
+those seven are genuine Steam brand squats that belong in the list. Every number
+here is reproducible with a single npm command.
 
 ![Block-level warning on a page whose hostname embeds steamcommunity.com](docs/demo.png)
 
@@ -37,6 +37,7 @@ Seven weighted signals accumulate, rather than a chain of ANDed conditions:
 | Damerau-Levenshtein ≤ 2 from an official domain | 40 | `steamcommnuity.com`, `stearnpowered.com`, `steampowered.net` |
 | Homoglyph substitution | 35 | Cyrillic `е`, `rn` for `m`, `0` for `o` |
 | Official domain embedded in host, label, path or query | 35 | `steamcommunity.com.trade-skins.tk` |
+| Registrable label Valve publishes, on a suffix it does not use | 30 | `steamgames.net`, `steamstatic.io` |
 | Punycode / IDN label | 30 | `xn--stampowered-pkj.com` |
 | Steam branding in title or image alt text | 15 | Page dressed as Steam |
 | Free-registration TLD | 10 | `.tk .ml .ga .cf .gq` |
@@ -70,19 +71,20 @@ entirely from outside this repository.
 
 ```
 $ npm run benchmark -- top-1m.csv
-Scored 1,000,000 real domains in 23.0s.
+Scored 1,000,000 real domains in 16.7s.
 
-  Flagged at warn  (>=35): 6  (0.0006%)
+  Flagged at warn  (>=35): 7  (0.0007%)
   Flagged at block (>=60): 1  (0.0001%)
 
-  1 in 166,667 real domains triggers a warning.
+  1 in 142,857 real domains triggers a warning.
 
-    # 222207   75  block    wsteamcommunity.com      [edit_distance, embedded_official]
-    # 317330   40  caution  steamcommunity.rip       [edit_distance]
-    # 460174   40  caution  steamcommunity.tips      [edit_distance]
-    # 520657   35  caution  steampoweredfamily.com   [embedded_official]
-    # 773577   40  caution  cukong88login.xn--6frz82g[punycode, login_keyword]
-    # 934098   40  caution  stampcommunity.org       [edit_distance]
+    # 225664   75  block    wsteamcommunity.com      [edit_distance, embedded_official]
+    # 327504   40  caution  steamcommunity.rip       [edit_distance]
+    # 471601   40  caution  steamcommunity.tips      [edit_distance]
+    # 526087   35  caution  steampoweredfamily.com   [embedded_official]
+    # 774364   40  caution  cukong88login.xn--6frz82g[punycode, login_keyword]
+    # 957047   40  caution  stampcommunity.org       [edit_distance]
+    # 977362   40  caution  sealcommunity.org        [edit_distance]
 ```
 
 Domains come from the [Tranco](https://tranco-list.eu/) top-sites list, ranked by
@@ -91,9 +93,15 @@ real traffic. Every flag is printed — nothing hides behind a summary statistic
 Reading them honestly: `wsteamcommunity.com`, `steamcommunity.rip` and
 `steamcommunity.tips` are Steam brand squats and the warning is correct.
 `steampoweredfamily.com` is a STEM-education site, `stampcommunity.org` belongs to
-stamp collectors, and the punycode one is unrelated. So the real cost is
-**three false positives per million domains**, and it is visible rather than
-asserted.
+stamp collectors, `sealcommunity.org` to conservationists, and the punycode one is
+unrelated. So the real cost is **four false positives per million domains**, and it
+is visible rather than asserted.
+
+Tranco is rebuilt daily, so these counts move. The run above used the list
+downloaded on 2026-08-21; an earlier snapshot flagged six rather than seven, the
+extra one being `sealcommunity.org`. Re-running the command reproduces whatever
+today's list says, which is the point of shipping the command rather than the
+number.
 
 ### 2. How much of the lookalike surface is actually registered
 
@@ -134,22 +142,82 @@ is the set CI enforces floors against.
 | Threshold  | TP | FP | TN | FN | Precision | Recall |   F1  |
 |-----------:|---:|---:|---:|---:|----------:|-------:|------:|
 |        20  | 37 |  3 | 45 |  1 |     92.5% |  97.4% | 0.949 |
-|  35 (warn) | 34 |  0 | 48 |  4 |    100.0% |  89.5% | 0.944 |
+|  35 (warn) | 35 |  0 | 48 |  3 |    100.0% |  92.1% | 0.959 |
 | 60 (block) | 24 |  0 | 48 | 14 |    100.0% |  63.2% | 0.774 |
 ```
 
 `npm run eval:misses` lists every misclassified URL with the signals behind it.
 
-**What it misses.** All four failures are Steam-*themed* lures with no lookalike
-domain — `steamwallet-generator.cf`, `steam-community-market.xyz`,
-`steamsupport-helpdesk.online`, `steamgames.net`. A domain analyser has nothing to
-grip on those. They are in the corpus on purpose: a test set containing only cases
-you catch measures nothing.
+**What it misses.** The three remaining failures are Steam-*themed* lures with no
+lookalike domain — `steamwallet-generator.cf`, `steam-community-market.xyz`,
+`steamsupport-helpdesk.online`. A domain analyser has nothing to grip on those.
+They are in the corpus on purpose: a test set containing only cases you catch
+measures nothing.
+
+`steamgames.net` used to be a fourth. It was never really the same class of miss —
+it is the exact label Valve publishes, resold under another suffix — and it is now
+caught. See below.
 
 **What these numbers are not.** This corpus is hand-written — real attack shapes,
 invented hostnames — and 86 URLs is small. It is a regression suite, not evidence
 about the wild. The extension has never been deployed to a user. Full limitations
 in [docs/DESIGN.md](docs/DESIGN.md#honest-limitations).
+
+## One signal added, one rejected
+
+Closing the `steamgames.net` miss meant choosing between two candidate signals.
+Both were measured against the top million before either was written into the
+scorer, because the cost of a signal is a false positive rate, not an opinion.
+
+### Added: the exact label, on the wrong suffix
+
+`IMPERSONATION_TARGETS` is deliberately narrower than `OFFICIAL_DOMAINS` —
+measuring edit distance against `steamgames.com` and `steamstatic.com` produced
+real false positives (`stargames.de`, `dreamgames.com`, `slamstatic.com`), so those
+domains are allowlisted but never scored against. That left a gap, and
+`steamgames.net` sat in it: not a typo of anything, just the label Valve publishes
+resold under another suffix.
+
+An exact label match needs no distance metric, so it closes the gap without the
+near-miss false positives that widening the edit-distance targets would have cost.
+It does not stack with `edit_distance` — a label that is exactly official is also
+zero edits from official, and counting both would push known caution-level squats
+into block on one piece of evidence.
+
+Cost, measured: **2 hits in the top million, both already flagged, both genuine**
+**Steam brand squats.** The benchmark output is byte-identical before and after.
+Recall went from 89.5% to 92.1% for nothing.
+
+### Rejected: brand token plus service word
+
+The obvious way to catch the other three misses is to score any domain containing
+`steam` next to a service word — wallet, market, support, trade, gift, key. It
+would have caught all three. It was measured and thrown away.
+
+```
+Domains in the top million containing "steam":                     227
+Of those, pairing it with a service word:                          15
+
+  steamgifts.com          steamtrades.com        steaminventoryhelper.com
+  keyforsteam.de          keysforsteam.com.br    freesteamkeys.com
+  steamcdkey.net          steam-account.ru       steam-trader.net
+  ...
+```
+
+Most of those are legitimate: `steamgifts.com` and `steamtrades.com` are
+long-running community sites, and the key resellers are businesses rather than
+phishing. Adding the signal would have roughly tripled the false positive rate to
+catch three corpus URLs — and `steamgifts.com` is precisely the kind of site the
+credential gate was introduced to keep quiet.
+
+The probe also produced two hits that were pure artefact: `reefgames.team` and
+`vgames.team` matched because stripping dots turns `reefgames.team` into
+`reefgame`**`steam`**. Substring matching across a label boundary invents brand
+hits that are not there — worth knowing before trusting any containment check.
+
+So the three brand-abuse lures stay missed, and the limitation stays in the
+README. A signal that trades one real false positive for one caught phish is not
+obviously worth having, and this one traded far worse than that.
 
 ## Repository structure
 
@@ -163,7 +231,7 @@ chrome-extension/           Loadable MV3 extension
   background.js               Service worker; mirrors the verdict onto the toolbar badge
   popup.html / popup.js       Shows the current tab's verdict and the reasons for it
 test/corpus.json            86 labelled URLs, all defanged
-test/scoring.test.js        47 unit tests, one per signal and edge case
+test/scoring.test.js        55 unit tests, one per signal and edge case
 test/corpus.test.js         24 tests: corpus integrity and precision/recall floors
 test/permutations.test.js   24 tests for the generator
 data/lookalikes.json        Registered Steam lookalikes found by DNS, defanged
@@ -182,7 +250,7 @@ docs/demo/login/            Inert mock Steam sign-in page for exercising the ban
 Requires Node 20+. There are no dependencies to install.
 
 ```bash
-npm test          # 95 tests: unit coverage plus corpus regression floors
+npm test          # 103 tests: unit coverage plus corpus regression floors
 npm run eval      # precision/recall on the labelled corpus
 npm run discover  # generate typosquats, resolve them against DNS
 npm run demo      # serve the demo phishing page
