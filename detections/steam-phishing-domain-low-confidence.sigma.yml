@@ -3,53 +3,52 @@ title: Possible Steam Phishing Domain (Weak Signal Pair)
 id: 5b90e7a2-41cf-4d8a-b3e6-90ac5d1f7e22
 status: experimental
 description: |
-  Two signals that are individually below the scorer's warn threshold but
-  reach it together: an official Steam label on a suffix Valve does not use,
-  or an IDN label, paired with a credential or trading keyword in the URL.
-  Expect more noise than the high-confidence rule; this is a hunting rule.
+    Two signals that are individually below the scorer's warn threshold but
+    reach it together: an official Steam label on a suffix Valve does not use,
+    or an IDN label, paired with a credential or trading keyword in the URL.
+    Expect more noise than the high-confidence rule; this is a hunting rule.
 references:
-  - https://github.com/OmereKurt/steam-phishing-detector
+    - https://github.com/OmereKurt/steam-phishing-detector
 author: Omer Kurt
-date: 2026/08/24
+date: 2026-08-24
 tags:
-  - attack.credential-access
-  - attack.t1566.002
+    - attack.credential-access
+    - attack.initial-access
+    - attack.t1566.002
 logsource:
-  category: proxy
+    category: proxy
 detection:
-  official_label:
-    cs-host|startswith:
-      - 'steamcommunity.'
-      - 'steamgames.'
-      - 'steampowered.'
-      - 'steamstatic.'
-      - 'valvesoftware.'
-  punycode_label:
-    cs-host|contains:
-      - 'xn--'
-  risky_tld:
-    cs-host|endswith:
-      - '.cf'
-      - '.ga'
-      - '.gq'
-      - '.ml'
-      - '.tk'
-  keyword:
-    c-uri|contains:
-      - 'login'
-      - 'signin'
-      - 'authenticate'
-      - 'trade'
-      - 'market'
-  official_host:
-    cs-host|endswith:
-      - 'steamcommunity.com'
-      - 'steamgames.com'
-      - 'steampowered.com'
-      - 'steamstatic.com'
-      - 'valvesoftware.com'
-  condition: ((official_label or punycode_label) and (keyword or risky_tld)) and not official_host
+    official_label:
+        cs-host|startswith:
+            - 'steamcommunity.'
+            - 'steamgames.'
+            - 'steampowered.'
+            - 'steamstatic.'
+            - 'valvesoftware.'
+    punycode_label:
+        cs-host|contains: 'xn--'
+    risky_tld:
+        cs-host|endswith:
+            - '.cf'
+            - '.ga'
+            - '.gq'
+            - '.ml'
+            - '.tk'
+    keyword:
+        c-uri|contains:
+            - 'login'
+            - 'signin'
+            - 'authenticate'
+            - 'trade'
+            - 'market'
+    official_host:
+        cs-host|endswith:
+            - 'steamcommunity.com'
+            - 'steamgames.com'
+            - 'steampowered.com'
+            - 'steamstatic.com'
+            - 'valvesoftware.com'
+    condition: ((official_label or punycode_label) and (keyword or risky_tld)) and not official_host
 falsepositives:
-  - Legitimate internationalised domains that happen to sit on a page with a
-    login path. Scope to the proxy categories that matter before enabling.
+    - Legitimate internationalised domains that happen to sit on a page with a login path
 level: medium
