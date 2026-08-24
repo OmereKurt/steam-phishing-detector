@@ -12,7 +12,7 @@ drifts from the source.
 | `splunk/steam-phishing-domain.spl` | Splunk SPL |
 | `sentinel/steam-phishing-domain.kql` | Microsoft Sentinel KQL |
 | `cortex-xsiam/steam-phishing-domain.xql` | Cortex XSIAM / XDR XQL |
-| `lookups/steam-lookalike-domains.csv` | 631 hosts, the materialised neighbourhood |
+| `lookups/steam-lookalike-domains.csv` | 2,101 hosts, the materialised neighbourhood |
 
 ATT&CK: **T1566.002** (Phishing: Spearphishing Link), **T1656** (Impersonation).
 
@@ -25,10 +25,22 @@ first time a weight moved and nothing would notice. Generating both from one
 module means `npm run detections:check` fails CI instead.
 
 It also solves the edit-distance problem. A query language cannot compute edit
-distance, but `src/permutations.js` already generates the typosquat
-neighbourhood, so the distance ≤ 2 set can be **materialised** into a lookup —
-631 hosts, each one filtered through the scorer first, so nothing reaches a rule
-that the extension itself would stay quiet on.
+distance, but `src/permutations.js` generates the typosquat neighbourhood, so the
+set can be **materialised** into a lookup — 2,101 hosts, each one filtered through
+the scorer first, so nothing reaches a rule that the extension itself would stay
+quiet on.
+
+The lookup unions two different generators, because they answer different
+questions. The eleven techniques answer "what would an attacker plausibly
+register", which is what `scripts/discover.js` needs before it resolves anything
+against DNS. A lookup needs the other question — "what is inside the scorer's
+threshold" — because anything within it that is missing makes the rule quietly
+narrower than the product. `steamcommunitiy.com` is one edit from
+`steamcommunity`, no technique produces it, and it was scored 50 by the extension
+and missed entirely by the rules. `exhaustiveNeighbourhood()` enumerates the
+complete distance-1 space and closes that class. Distance 2 stays
+technique-driven: the complete distance-2 space of a fourteen-character label runs
+to hundreds of thousands of strings.
 
 ## What survives the translation
 
@@ -56,15 +68,15 @@ Both the rule and the full scorer, run over the 86-URL labelled corpus:
 $ npm test
 
   phishing URLs the scorer catches : 35
-  phishing URLs the rule catches   : 27   (77.1%)
+  phishing URLs the rule catches   : 28   (80.0%)
   URLs the rule fires on that the scorer does not : 0
   benign URLs the rule fires on                   : 0
 ```
 
-77% of the extension's detections, no new false positives, and the rule is never
+80% of the extension's detections, no new false positives, and the rule is never
 broader than the product. Both floors are enforced in CI.
 
-The eight it misses divide cleanly:
+The seven it misses divide cleanly:
 
 - **Four** score below the threshold on URL alone and only cross it because the
   extension can read Steam branding out of the page — `steam-trade-offer.tk`,
@@ -72,10 +84,11 @@ The eight it misses divide cleanly:
   language will put a page title into a proxy log.
 - **One**, `steamgames.net/login/`, is `official_tld_swap` plus a keyword. It is
   covered by the low-confidence rule, not this one.
-- **One**, `steamcommunitiy.com`, is within edit distance 2 but is not a string
-  the generator happens to produce. Materialising a neighbourhood only covers
-  what the generator enumerates, never every string within the distance.
 - **Two** are path embedding, excluded on purpose. See below.
+
+`steamcommunitiy.com` used to be an eighth. It is one edit from `steamcommunity`
+and no technique produced it, which is what the exhaustive distance-1 pass now
+covers.
 
 ## One shape deliberately excluded
 
@@ -94,6 +107,31 @@ and that information does not exist in a proxy log.
 
 Trading three false positives for one detection is the trade this project
 rejects elsewhere. It is rejected here too, and those two URLs stay uncovered.
+
+## One more shape, rejected three times
+
+Testing each label of an observed hostname against the bare lookalike labels
+would catch `steamcomunity[.]eu[.]cc` — a live PhishTank phish parked on a suffix
+nobody enumerated, which the extension catches and these rules do not. Three
+versions were measured:
+
+| Version | Result |
+|---|---|
+| Any label of any materialised host | **226 false positives** in the top million |
+| Labels ≥ 8 chars, 1–2 edits from a brand | Clean — one hit, and correct |
+| `contains`, the most Sigma can express | Fires on `steamcommunity.fandom.com` |
+
+The first failed because the `subdomain-split` technique emits hosts like
+`steampower.ed.com`, whose registrable label is the fragment `ed` — so the set
+contained `ed`, `d` and `red`, matching `ed.gov`, `red.es` and `d.hu`. The third
+failed because that fan wiki contains the distance-1 label `steamcommunit`, and
+firing on it would break the invariant that these rules never fire where the
+scorer stays quiet.
+
+The middle version works and **Sigma cannot express it** — there is no operator
+that splits a hostname into labels. Shipping the exact form in KQL and XQL but
+not Sigma would leave the four artefacts disagreeing about what the rule is, so
+none of them carry it.
 
 ## Deploying
 

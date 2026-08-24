@@ -81,7 +81,22 @@
   const BANDS = { BLOCK: 60, CAUTION: 35 };
 
   /** Maximum edit distance still considered a lookalike of an official domain. */
-  const MAX_LOOKALIKE_DISTANCE = 2;
+  const MAX_LOOKALIKE_DISTANCE = 3;
+
+  /**
+   * Beyond distance 2, a shared opening is required.
+   *
+   * Distance 3 alone is far too loose: telecommunity.com, stakecommunity.com and
+   * sexycommunity.com are all three edits from steamcommunity and all real
+   * businesses. What separates them from steamcomnunnlty.com is not the distance
+   * but where the edits fall. A typo preserves the start of the word, because
+   * that is the part a reader actually processes; the false positives share only
+   * a suffix -- they are different words ending in "community", not misspellings
+   * of this one. Measured on the top million, requiring six shared leading
+   * characters admits the typosquats and none of the businesses.
+   */
+  const MIN_FAR_MATCH_PREFIX = 6;
+  const FAR_MATCH_DISTANCE = 3;
 
   /** Free-registration TLDs with a long history of disposable abuse domains. */
   const RISKY_TLDS = ["tk", "ml", "ga", "cf", "gq"];
@@ -394,10 +409,38 @@
    * domain. Distance 0 is only reachable here because official hosts are
    * allowlisted and returned before this runs.
    */
-  function lookalikeDistance(registrable) {
+  /** Length of the shared opening of two strings. */
+  function commonPrefixLength(a, b) {
+    const x = String(a);
+    const y = String(b);
+    let i = 0;
+    while (i < x.length && i < y.length && x[i] === y[i]) i++;
+    return i;
+  }
+
+  /**
+   * Closest official domain, measured from the registrable domain, its brand
+   * label, and every other label in the hostname.
+   *
+   * The last of those exists because MULTI_PART_SUFFIXES is a stand-in for the
+   * Public Suffix List and will always be incomplete. steamcomunity.eu.cc -- a
+   * live phish from PhishTank -- parses to a registrable domain of eu.cc and a
+   * brand of "eu", so the label one edit from steamcommunity was discarded as a
+   * subdomain before any signal ran. Comparing every label needs no suffix
+   * knowledge at all, which is the only version of this that does not require
+   * chasing new suffixes forever.
+   *
+   * A match found outside the registrable label is weaker evidence, so it
+   * carries the same shared-opening requirement as a distance-3 match:
+   * starcommunity.com.au is two edits from steamcommunity but shares only "st",
+   * and is a real Australian business rather than a typosquat.
+   */
+  function lookalikeDistance(registrable, hostLabels) {
     const brand = brandLabel(registrable);
     let best = Infinity;
     let match = null;
+    let prefix = 0;
+
     for (let i = 0; i < IMPERSONATION_TARGETS.length; i++) {
       const d = Math.min(
         damerauLevenshtein(registrable, IMPERSONATION_TARGETS[i]),
@@ -406,9 +449,30 @@
       if (d < best) {
         best = d;
         match = IMPERSONATION_TARGETS[i];
+        prefix = commonPrefixLength(brand, TARGET_BRANDS[i]);
       }
     }
-    return { distance: best, match };
+
+    const labels = Array.isArray(hostLabels) ? hostLabels : [];
+    for (const label of labels) {
+      if (label === brand) continue;
+      for (let i = 0; i < TARGET_BRANDS.length; i++) {
+        const d = damerauLevenshtein(label, TARGET_BRANDS[i]);
+        // Distance 0 is excluded deliberately. A label that IS an official brand
+        // sitting in someone else's hostname is embedded_official's job, and
+        // that signal is weighed differently on purpose: steamcommunity.fandom.com
+        // is a fan wiki, and treating its subdomain as a typosquat scored it 40
+        // where it had scored 0. Only genuine misspellings belong on this path.
+        if (d === 0) continue;
+        if (d >= best) continue;
+        if (commonPrefixLength(label, TARGET_BRANDS[i]) < MIN_FAR_MATCH_PREFIX) continue;
+        best = d;
+        match = IMPERSONATION_TARGETS[i];
+        prefix = commonPrefixLength(label, TARGET_BRANDS[i]);
+      }
+    }
+
+    return { distance: best, match, prefix };
   }
 
   /** Same visual skeleton as an official brand, but not the same characters. */
@@ -570,8 +634,9 @@
     const pathAndQuery = (parsed.pathname + parsed.search).toLowerCase();
     const urlText = hostname + pathAndQuery;
 
-    const lookalike = lookalikeDistance(registrable);
-    const nearTarget = lookalike.distance <= MAX_LOOKALIKE_DISTANCE;
+    const lookalike = lookalikeDistance(registrable, hostname.split("."));
+    const nearTarget = lookalike.distance <= MAX_LOOKALIKE_DISTANCE &&
+      (lookalike.distance < FAR_MATCH_DISTANCE || lookalike.prefix >= MIN_FAR_MATCH_PREFIX);
     if (nearTarget) {
       reasons.push(reason(
         "edit_distance",

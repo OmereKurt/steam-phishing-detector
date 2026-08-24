@@ -10,10 +10,12 @@ and the live-feed evaluation that say how well it actually works.
 those seven are genuine Steam brand squats that belong in the list. Every number
 here is reproducible with a single npm command.
 
-**Scored against 73,250 live phishing URLs, it catches two of the seven aimed at**
-**Steam.** The hand-written corpus reports 92.1% recall; real attacker hostnames
-give 29%. That gap, and the two defects behind it, are written up in full below
-rather than left out.
+**Scored against 73,250 live phishing URLs, it catches five of the seven aimed**
+**at Steam, and warns on six URLs in total — every one of them genuine.** It used
+to catch two of seven. Closing that gap meant fixing three defects the live feeds
+exposed, each one costing nothing in the million-domain benchmark; the
+measurements are below, including the versions that were measured and thrown
+away.
 
 ![Block-level warning on a page whose hostname embeds steamcommunity.com](docs/demo.png)
 
@@ -39,7 +41,7 @@ Eight weighted signals accumulate, rather than a chain of ANDed conditions:
 
 | Signal | Weight | Catches |
 |---|---:|---|
-| Damerau-Levenshtein ≤ 2 from an official domain | 40 | `steamcommnuity.com`, `stearnpowered.com`, `steampowered.net` |
+| Damerau-Levenshtein ≤ 2 from an official domain, or ≤ 3 sharing six leading characters | 40 | `steamcommnuity.com`, `stearnpowered.com`, `steamcomnunnlty.com` |
 | Homoglyph substitution | 35 | Cyrillic `е`, `rn` for `m`, `0` for `o` |
 | Official domain embedded in host, label, path or query | 35 | `steamcommunity.com.trade-skins.tk` |
 | Registrable label Valve publishes, on a suffix it does not use | 30 | `steamgames.net`, `steamstatic.io` |
@@ -177,21 +179,22 @@ attackers actually registered, from PhishTank's verified-online feed
 ```
 $ npm run live-eval -- online-valid.csv openphish-feed.txt
 
-  Recall on target="Steam" (13 entries)      warned on 1/13
+  Recall on target="Steam" (13 entries)      warned on 4/13
   Specificity across all 73,250 phishing URLs
-    warned  (>= 35): 2  (0.0027%)
+    warned  (>= 35): 6  (0.0082%)
     blocked (>= 60): 0
   OpenPhish community feed: 300 URLs, 0 warned.
 ```
 
 Nothing in that pipeline fetches a URL. Every input is scored as a string.
 
-**Specificity is the good result.** Two warnings across 73,250 live phishing
-URLs, and both are Steam lookalikes — one of them, `svteamconmmunity[.]com`,
-PhishTank files under `Other`, so the scorer labelled it before the feed did.
-Zero blocks. Zero hits on 300 OpenPhish URLs. Phishing infrastructure aimed at
-Allegro, the IRS and Amazon is a far more adversarial negative set than Tranco's
-legitimate domains, and a Steam-specific scorer stays quiet on it.
+**Specificity is the good result.** Six warnings across 73,250 live phishing
+URLs, and **all six are genuine Steam impersonation** — two of them,
+`svteamconmmunity[.]com` and `steamcommunitylog[.]chez[.]com`, PhishTank files
+under `Other`, so the scorer labelled them before the feed did. Zero blocks. Zero
+hits on 300 OpenPhish URLs. Phishing infrastructure aimed at Allegro, the IRS and
+Amazon is a far more adversarial negative set than Tranco's legitimate domains,
+and a Steam-specific scorer stays quiet on it.
 
 **Recall is the bad result, and it is worse than the corpus implies.** Start by
 discounting the label: 7 of those 13 are not Steam domain phishing at all. Four
@@ -204,64 +207,137 @@ hostnames, plus the one mislabelled `Other`:
 |---|---:|---|
 | `login.steampowered[.]com[.]ru` | 45 | caught — embedded official domain |
 | `svteamconmmunity[.]com` | 40 | caught — distance 2 |
-| `steamcomunity[.]eu[.]cc` | 0 | **missed — suffix parsing** |
-| `steamcomnunnlty[.]com` | 0 | missed — distance 3 |
-| `steamcomunmitty[.]com` | 0 | missed — distance 3 |
+| `steamcomunity[.]eu[.]cc` | 40 | caught — label outside the registrable domain |
+| `steamcomnunnlty[.]com` | 40 | caught — distance 3, shared opening |
+| `steamcomunmitty[.]com` | 40 | caught — distance 3, shared opening |
 | `store-steampowereed[.]ru` | 0 | missed — combosquat plus a doubled letter, distance 7 |
 | `store.communitystudionsarts[.]shop` | 0 | missed — brand lure, no lookalike domain |
 
-**Two of seven.** The labelled corpus reports 92.1% recall; real hostnames give
-29%. Both numbers are honest and they measure different things — the corpus
-measures the shapes I thought of, this measures the shapes attackers chose. The
-gap between them is the most useful thing in this repository.
+**Five of seven, up from two.** The last three rows were the three defects; the
+first two of them are now closed, and the fixes are below. The remaining two are
+genuinely hard: one is seven edits out, and the other has no lookalike domain for
+a domain analyser to grip.
+
+The corpus still reports 92.1% and real hostnames now give 71%. Both numbers are
+honest and they measure different things — the corpus measures the shapes I
+thought of, this measures the shapes attackers chose. The gap between them was
+the most useful thing in this repository, and it is what produced everything in
+the next section.
 
 
 ## What the live feeds exposed
 
-Two defects, and the measured cost of fixing each. Both candidates were scored
-against the Tranco top million before either was considered, for the same reason
-as before: the cost of a change is a false positive rate, not an opinion.
+Three defects, and the measured cost of each fix. Every candidate was scored
+against the Tranco top million before it was considered, for the same reason as
+always: the cost of a change is a false positive rate, not an opinion. The first
+version of each fix was rejected, and saying so is the point.
 
-### Defect 1: the public-suffix stand-in drops the brand label
+### Defect 1: the suffix stand-in dropped the brand label
 
-`steamcomunity[.]eu[.]cc` scores zero. `registrableDomain` does not know
-`eu.cc` is a suffix people register under, so it parses the registrable domain
-as `eu.cc` and the brand label as `eu` — and `steamcomunity`, one edit from
-`steamcommunity`, is discarded as a subdomain before any signal runs. The
-20-entry `MULTI_PART_SUFFIXES` list is documented as a stand-in for the Public
-Suffix List; this is what that shortcut actually costs.
+`steamcomunity[.]eu[.]cc` scored zero. `registrableDomain` does not know `eu.cc`
+is a suffix people register under, so it parsed the registrable domain as `eu.cc`
+and the brand as `eu` — and `steamcomunity`, one edit from `steamcommunity`, was
+discarded as a subdomain before any signal ran. The 20-entry
+`MULTI_PART_SUFFIXES` list is documented as a stand-in for the Public Suffix
+List; this is what that shortcut actually cost.
 
-Growing the list is endless. The alternative is to measure edit distance against
-every label in the hostname rather than only the registrable brand, which needs
-no suffix knowledge at all.
+**Rejected: measure every label, unconditionally.** Catches it, and costs one
+false positive — `starcommunity.com.au`, an Australian business two edits from
+`steamcommunity`.
 
-**Measured: catches `steamcomunity[.]eu[.]cc`, promotes `login.steampowered[.]com[.]ru`**
-**from caution to block, costs 1 new false positive in the top million**
-(`starcommunity.com.au`, at caution). All 103 existing tests still pass.
+**Shipped: measure every label, but require a shared opening.** A match found
+outside the registrable label is weaker evidence, so it carries the same
+six-character prefix requirement as a distance-3 match. `steamcomunity` shares
+eight characters with `steamcommunity`; `starcommunity` shares two.
+
+**Cost, measured: zero. The million-domain benchmark is byte-identical.**
+
+A regression surfaced while testing it, and it is the more interesting half.
+Scoring *every* label without excluding distance 0 took
+`steamcommunity.fandom.com` — a fan wiki — from 0 to 40, because its subdomain is
+an exact official brand. An official brand sitting in someone else's hostname is
+`embedded_official`'s job, and that signal is weighed differently on purpose. So
+the label path now skips distance 0 entirely and only catches misspellings.
+
+**The million-domain benchmark could not have caught this.** Tranco lists
+registrable domains and never subdomains, so nothing in a one-million-row sweep
+of bare hostnames exercises the case. The 86-URL corpus caught it. A small
+hand-written set is not a worse version of a large measured one — it covers
+shapes the large one structurally cannot reach.
 
 ### Defect 2: real typosquats sit at distance 3
 
 `steamcomnunnlty[.]com` and `steamcomunmitty[.]com` are both exactly three edits
-from `steamcommunity`. `MAX_LOOKALIKE_DISTANCE` is 2, so both score zero. The
+from `steamcommunity`. `MAX_LOOKALIKE_DISTANCE` was 2, so both scored zero. The
 threshold was tuned against a corpus whose typosquats I wrote, and I wrote
 plausible ones — attackers register uglier strings than that.
 
-**Measured: raising the threshold to 3 catches both, and costs 6 new false**
-**positives in the top million** — `telecommunity.com`, `stakecommunity.com`,
+**Rejected: raise the threshold to 3.** Catches both, and costs six false
+positives in the top million: `telecommunity.com`, `stakecommunity.com`,
 `stintcommunity.com`, `sexycommunity.it`, `sexxcommunity.com`, `telapowered.com`.
-All are real businesses.
+All real businesses.
 
-### Neither is in the scorer
+**Shipped: distance 3, but only with six shared leading characters.** What
+separates the typosquats from the businesses is not the distance, it is where the
+edits fall. A typo preserves the start of the word, because that is the part a
+reader actually processes. The false positives share only a *suffix* — they are
+different words ending in "community", not misspellings of this one.
 
-The stated bar in this repository is that a signal trading one real false
-positive for one caught phish is not obviously worth having. Distance 3 trades
-six for two and is clearly out. Per-label distance trades one for one, which
-lands exactly on the bar rather than over it — and a false positive on a
-credential warning costs a user's trust in every later warning, so the tie does
-not break in favour of shipping.
+```
+  steamcomnunnlty   distance 3, shared opening 8   ← typosquat
+  steamcomunmitty   distance 3, shared opening 8   ← typosquat
+  stakecommunity    distance 3, shared opening 2   ← business
+  telecommunity     distance 3, shared opening 0   ← business
+```
 
-Both remain measurable with a one-line change and a benchmark run. That is the
-point of keeping the cost of an idea cheap to find out.
+**Cost, measured: zero new warnings and zero lost detections across the top**
+**million.** Distance 1 and 2 are unaffected, so `stearnpowered.com` — which
+shares only four characters — still fires as it always did.
+
+### Defect 3: a materialised neighbourhood only covers what was enumerated
+
+`steamcommunitiy.com` is **one** edit from `steamcommunity`. The extension scored
+it 50. The generated SIEM rules missed it completely, because none of the eleven
+techniques in `src/permutations.js` happen to produce that string, and the lookup
+can only contain what something generated.
+
+That is the difference between the two consumers of the generator. `discover.js`
+wants *plausible* registrations to resolve against DNS. A SIEM lookup wants
+*coverage* of the scorer's threshold, or the rule is quietly narrower than the
+product. `exhaustiveNeighbourhood()` now enumerates the complete distance-1
+space — every insertion, deletion, substitution and transposition — and the
+materialiser unions both.
+
+**Cost: the lookup grew from 631 hosts to 2,101, and rule coverage went from**
+**77.1% to 80.0% with no new false positives.** Distance 2 stays technique-driven:
+the complete distance-2 neighbourhood of a fourteen-character label runs to
+hundreds of thousands of strings, which is a lookup nobody wants and a
+false-positive surface nobody has measured. That limit is documented rather than
+hidden.
+
+### One more, measured three ways and never shipped
+
+Matching each label of an observed hostname against the bare lookalike labels
+would catch `steamcomunity[.]eu[.]cc` in the SIEM rules too, not just the
+extension. Three versions were measured:
+
+| Version | Result |
+|---|---|
+| Any label of any materialised host | **226 false positives** in the top million |
+| Labels ≥ 8 chars, 1–2 edits from a brand | Clean — 1 hit, correct, but needs exact equality |
+| `contains`, the most Sigma can express | Fires on `steamcommunity.fandom.com` |
+
+The first failed because `subdomain-split` emits hosts like `steampower.ed.com`,
+whose registrable label is the fragment `ed` — so the set contained `ed`, `d` and
+`red`, and matched `ed.gov`, `red.es` and `d.hu`. The third failed because that
+fan wiki contains the distance-1 label `steamcommunit`.
+
+The middle version works, and Sigma still cannot express it: there is no operator
+that splits a hostname into labels. Shipping the exact form in KQL and XQL but
+not Sigma would leave the four artefacts disagreeing about what the rule is.
+So the suffix-independent class stays uncovered by the rules, and is listed with
+page branding and the credential gate as something the extension catches and a
+log-based rule cannot.
 
 ## The signal that never fired
 
@@ -314,15 +390,15 @@ The translation is lossy, and the losses are measured rather than asserted:
 $ npm test
 
   phishing URLs the scorer catches : 35
-  phishing URLs the rule catches   : 27   (77.1%)
+  phishing URLs the rule catches   : 28   (80.0%)
   fires the scorer would not make  : 0
   benign URLs fired on             : 0
 ```
 
-Edit distance is not expressible in a query language, so the distance ≤ 2
-neighbourhood is **materialised** into a 631-host lookup by the typosquat
-generator that was already in the repository — each candidate filtered through
-the scorer first, so no rule is ever broader than the product. Page branding and
+Edit distance is not expressible in a query language, so the neighbourhood is
+**materialised** into a 2,101-host lookup — the complete distance-1 space plus
+the technique-driven candidates — each one filtered through the scorer first, so
+no rule is ever broader than the product. Page branding and
 the credential-field gate cannot cross at all: neither exists in a proxy log.
 
 Path embedding is excluded on purpose. It adds 2 detections and 6 false
@@ -392,7 +468,8 @@ obviously worth having, and this one traded far worse than that.
 
 ```
 src/scoring.js              The scorer. Pure, dependency-free, the only detection logic.
-src/permutations.js         Typosquat generator: 11 techniques, dnstwist-style.
+src/permutations.js         Typosquat generator: 11 techniques, dnstwist-style,
+                            plus the complete distance-1 neighbourhood.
 chrome-extension/           Loadable MV3 extension
   manifest.json               One permission: activeTab
   scoring.js                  Generated copy of src/scoring.js (npm run sync)
@@ -400,10 +477,10 @@ chrome-extension/           Loadable MV3 extension
   background.js               Service worker; mirrors the verdict onto the toolbar badge
   popup.html / popup.js       Shows the current tab's verdict and the reasons for it
 test/corpus.json            86 labelled URLs, all defanged
-test/scoring.test.js        64 unit tests, one per signal and edge case
+test/scoring.test.js        73 unit tests, one per signal and edge case
 test/detections.test.js     20 tests: rule logic, artefact drift, SIEM coverage
 test/corpus.test.js         24 tests: corpus integrity and precision/recall floors
-test/permutations.test.js   24 tests for the generator
+test/permutations.test.js   28 tests for the generator
 data/lookalikes.json        Registered Steam lookalikes found by DNS, defanged
 data/benchmark.json         Every domain flagged in the million-domain run
 data/live-eval.json         Live-feed run: every Steam-labelled URL and every hit
@@ -425,7 +502,7 @@ docs/demo/login/            Inert mock Steam sign-in page for exercising the ban
 Requires Node 20+. There are no dependencies to install.
 
 ```bash
-npm test          # 132 tests: unit coverage, corpus floors, detection coverage
+npm test          # 145 tests: unit coverage, corpus floors, detection coverage
 npm run eval      # precision/recall on the labelled corpus
 npm run discover  # generate typosquats, resolve them against DNS
 npm run demo      # serve the demo phishing page

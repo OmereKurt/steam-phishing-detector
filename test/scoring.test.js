@@ -407,3 +407,60 @@ test("punycode decoding and IDN homographs", async t => {
     assert.ok(!r.reasons.map(x => x.id).includes("homoglyph"));
   });
 });
+
+// ---------------------------------------------------------------------------
+test("distance 3 requires a shared opening", async t => {
+  await t.test("catches typosquats three edits out", () => {
+    // Both live PhishTank hostnames. Each is exactly 3 edits from
+    // steamcommunity and shares an 8-character opening with it.
+    for (const host of ["steamcomnunnlty.com", "steamcomunmitty.com"]) {
+      assert.ok(s.score("https://" + host + "/").score >= s.BANDS.CAUTION, host);
+    }
+  });
+
+  await t.test("stays silent on words that merely share a suffix", () => {
+    // All three edits from steamcommunity, all real businesses, and all sharing
+    // at most two leading characters. Raising the threshold without the prefix
+    // requirement flagged every one of them.
+    for (const host of ["telecommunity.com", "stakecommunity.com", "sexycommunity.it",
+                        "stintcommunity.com", "telapowered.com"]) {
+      assert.strictEqual(s.score("https://" + host + "/").score, 0, host);
+    }
+  });
+
+  await t.test("distance 1 and 2 are unaffected by the prefix requirement", () => {
+    // stearnpowered shares only "stea" but is two edits out, so the shared
+    // opening is not required and the existing detection must not regress.
+    assert.ok(s.score("https://stearnpowered.com/").score >= s.BANDS.BLOCK);
+    assert.ok(s.score("https://sealcommunity.org/").score >= s.BANDS.CAUTION);
+  });
+});
+
+// ---------------------------------------------------------------------------
+test("labels outside the registrable domain", async t => {
+  await t.test("catches a typosquat parked on an unrecognised suffix", () => {
+    // steamcomunity.eu.cc is a live PhishTank phish. eu.cc is not in the
+    // suffix list, so the registrable domain parses as eu.cc and the brand as
+    // "eu" -- the label one edit from steamcommunity was being discarded.
+    assert.ok(s.score("https://steamcomunity.eu.cc/").score >= s.BANDS.CAUTION);
+  });
+
+  await t.test("does not treat an exact official brand in a subdomain as a typo", () => {
+    // Regression. Scoring every label without excluding distance 0 took
+    // steamcommunity.fandom.com -- a fan wiki -- from 0 to 40. The Tranco
+    // benchmark cannot catch this class at all: it lists registrable domains,
+    // never subdomains, so only the corpus sees it.
+    assert.strictEqual(s.score("https://steamcommunity.fandom.com/wiki/Trading").score, 0);
+  });
+
+  await t.test("a subdomain label needs the shared opening too", () => {
+    // starcommunity.com.au is two edits from steamcommunity but shares "st".
+    assert.strictEqual(s.score("https://starcommunity.com.au/").score, 0);
+  });
+
+  await t.test("official hosts and their subdomains still short-circuit", () => {
+    for (const host of ["steamcommunity.com", "store.steampowered.com", "cdn.steamstatic.com"]) {
+      assert.strictEqual(s.score("https://" + host + "/").score, 0, host);
+    }
+  });
+});

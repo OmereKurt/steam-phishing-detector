@@ -31,7 +31,17 @@
   function materialiseLookalikes() {
     const hosts = new Map();
     for (const target of scoring.IMPERSONATION_TARGETS) {
-      for (const [host] of permutations.generate(target, {})) {
+      // Technique-driven candidates answer "what would an attacker register".
+      // The exhaustive distance-1 set answers "what is inside the scorer's
+      // threshold", which is what a lookup has to cover or the rule is quietly
+      // narrower than the extension: steamcommunitiy.com is one edit from
+      // steamcommunity, none of the eleven techniques produce it, and it was
+      // scored 50 by the extension and missed entirely by the generated rules.
+      const candidates = new Map([
+        ...permutations.generate(target, {}),
+        ...permutations.exhaustiveNeighbourhood(target)
+      ]);
+      for (const [host] of candidates) {
         const result = scoring.score("https://" + host + "/", {});
         if (result.score < WARN) continue;
         const fired = result.reasons.map(r => r.id);
@@ -63,6 +73,29 @@
     if (isOfficial(host)) return null;
 
     if (LOOKALIKES.has(host)) return "lookalike_domain";
+
+    // Label matching -- testing each label of the hostname against the bare
+    // lookalike labels -- is deliberately absent. It would catch
+    // steamcomunity.eu.cc, a live PhishTank phish the host lookup misses
+    // because eu.cc is not a suffix anyone enumerated. Three versions were
+    // measured and none shipped:
+    //
+    //   naive: 226 false positives in the top million. The subdomain-split
+    //     technique emits hosts like steampower.ed.com whose registrable label
+    //     is the fragment "ed", so the set matched ed.gov and red.es.
+    //   filtered to labels >= 8 characters and 1-2 edits from a brand: clean,
+    //     one hit in the top million -- but it needs exact label equality.
+    //   `contains`, which is the most Sigma can express: fires on
+    //     steamcommunity.fandom.com, which contains the distance-1 label
+    //     "steamcommunit". A fan wiki the extension stays silent on.
+    //
+    // Sigma has no operator that splits a hostname into labels. Shipping the
+    // exact form in KQL and XQL but not Sigma would leave the four artefacts
+    // disagreeing about what the rule is; shipping `contains` everywhere would
+    // break the invariant that this rule never fires where the scorer would
+    // not. So the suffix-independent class stays uncovered here and is listed
+    // with branding and the credential gate as something the extension catches
+    // and a log-based rule cannot.
 
     // Mirrors embeddedOfficial() in the scorer. An earlier version required a
     // dot after the official domain, which quietly missed the commonest shape

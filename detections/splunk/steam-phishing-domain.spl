@@ -4,7 +4,7 @@
 #
 # Prerequisite: publish detections/lookups/steam-lookalike-domains.csv as the
 # lookup definition `steam_lookalike_domains` (fields: host, signal). The list
-# is data and the rule is logic; do not paste 631 domains into the search.
+# is data and the rule is logic; do not paste 2101 domains into the search.
 
 index=proxy
 | eval host=lower(cs_host), uri=lower(cs_uri)

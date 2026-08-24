@@ -1,15 +1,20 @@
 {
-  "generated": "2026-08-24T14:07:16.176Z",
+  "generated": "2026-08-24T18:53:36.634Z",
   "note": "URLs are defanged. Nothing in this pipeline fetches them.",
   "phishtank": {
     "scored": 73250,
     "steamLabelled": 13,
-    "steamWarned": 1,
-    "warned": 2,
+    "steamWarned": 4,
+    "warned": 6,
     "blocked": 0,
     "firedOnNonSteam": [
       {
         "url": "hxxps://svteamconmmunity[.]com/gift/72503",
+        "target": "Other",
+        "score": 40
+      },
+      {
+        "url": "hxxp://steamcommunitylog[.]chez[.]com/index[.]php",
         "target": "Other",
         "score": 40
       }
@@ -23,9 +28,11 @@
       },
       {
         "url": "hxxps://steamcomunity[.]eu[.]cc/",
-        "score": 0,
-        "verdict": "silent",
-        "signals": []
+        "score": 40,
+        "verdict": "caution",
+        "signals": [
+          "edit_distance"
+        ]
       },
       {
         "url": "hxxps://login[.]steampowered[.]com[.]ru/",
@@ -50,15 +57,19 @@
       },
       {
         "url": "hxxps://steamcomnunnlty[.]com/",
-        "score": 0,
-        "verdict": "silent",
-        "signals": []
+        "score": 40,
+        "verdict": "caution",
+        "signals": [
+          "edit_distance"
+        ]
       },
       {
         "url": "hxxps://steamcomunmitty[.]com/",
-        "score": 0,
-        "verdict": "silent",
-        "signals": []
+        "score": 40,
+        "verdict": "caution",
+        "signals": [
+          "edit_distance"
+        ]
       },
       {
         "url": "hxxps://bobablacksheep[.]gotrackier[.]com/click?campaign_id=1&amp;pub_id=2&amp;gclid=Cj0KCQjwwO20BhCJARIsAAnTIVSaCVZ1w2vUU8q6nmq3mmx7yMlsN2sd1uinjomIxdDYcYI5FNL54YcaAkKsEALw_wcB",

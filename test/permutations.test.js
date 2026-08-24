@@ -159,3 +159,31 @@ test("generator and scorer agree", async t => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+test("exhaustive distance-1 neighbourhood", async t => {
+  await t.test("every candidate is exactly one edit from the label", () => {
+    const s = require("../src/scoring.js");
+    for (const target of ["steamcommunity.com", "steampowered.com"]) {
+      const brand = s.brandLabel(target);
+      for (const [host] of p.exhaustiveNeighbourhood(target)) {
+        const label = s.brandLabel(s.registrableDomain(host));
+        assert.strictEqual(s.damerauLevenshtein(label, brand), 1, host);
+      }
+    }
+  });
+
+  await t.test("covers a distance-1 typo the techniques do not produce", () => {
+    // The gap this function exists to close: one edit from steamcommunity, and
+    // none of the eleven techniques generate it.
+    assert.ok(!p.generate("steamcommunity.com").has("steamcommunitiy.com"));
+    assert.ok(p.exhaustiveNeighbourhood("steamcommunity.com").has("steamcommunitiy.com"));
+  });
+
+  await t.test("never emits a hostname with a leading, trailing or doubled hyphen", () => {
+    for (const [host] of p.exhaustiveNeighbourhood("steamcommunity.com")) {
+      const label = host.split(".")[0];
+      assert.ok(!label.startsWith("-") && !label.endsWith("-") && !label.includes("--"), host);
+    }
+  });
+});

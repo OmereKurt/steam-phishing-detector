@@ -220,6 +220,61 @@
    * All candidates for one domain.
    * @returns {Map<string, string>} hostname -> technique that produced it
    */
+  /**
+   * Every string exactly one edit from the label, on the same TLD.
+   *
+   * generate() above answers "what would an attacker plausibly register" --
+   * keyboard slips, homoglyphs, combosquats. That is the right question for
+   * scripts/discover.js, which resolves the answers against DNS and should not
+   * fire off thousands of lookups for strings nobody would ever buy.
+   *
+   * It is the wrong question for a SIEM lookup. Materialising a neighbourhood
+   * for a rule needs *coverage*, not plausibility: any string within the
+   * scorer's distance threshold has to be in the list or the rule is quietly
+   * narrower than the product. steamcommunitiy.com is one edit from
+   * steamcommunity and none of the eleven techniques produce it, so it was
+   * scored 50 by the extension and missed entirely by the generated rules.
+   *
+   * Distance 1 only. The complete distance-2 neighbourhood of a fourteen
+   * character label runs to hundreds of thousands of strings, which is a lookup
+   * nobody wants and a false-positive surface nobody has measured; distance 2
+   * stays technique-driven, and that limit is documented rather than hidden.
+   */
+  function exhaustiveNeighbourhood(domain) {
+    const { label, tld } = splitDomain(domain);
+    const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789-";
+    const found = new Map();
+
+    const add = (mutated, technique) => {
+      if (!mutated || mutated === label) return;
+      if (mutated.startsWith("-") || mutated.endsWith("-")) return;
+      if (mutated.indexOf("--") !== -1) return;
+      const host = mutated + "." + tld;
+      if (!found.has(host)) found.set(host, technique);
+    };
+
+    for (let i = 0; i < label.length; i++) {
+      add(label.slice(0, i) + label.slice(i + 1), "exhaustive-deletion");
+    }
+    for (let i = 0; i < label.length; i++) {
+      for (const ch of alphabet) {
+        if (ch === label[i]) continue;
+        add(label.slice(0, i) + ch + label.slice(i + 1), "exhaustive-substitution");
+      }
+    }
+    for (let i = 0; i <= label.length; i++) {
+      for (const ch of alphabet) {
+        add(label.slice(0, i) + ch + label.slice(i), "exhaustive-insertion");
+      }
+    }
+    for (let i = 0; i < label.length - 1; i++) {
+      if (label[i] === label[i + 1]) continue;
+      add(label.slice(0, i) + label[i + 1] + label[i] + label.slice(i + 2), "exhaustive-transposition");
+    }
+
+    return found;
+  }
+
   function generate(domain, options) {
     const opts = options || {};
     const { label, tld } = splitDomain(domain);
@@ -252,6 +307,7 @@
 
   return {
     generate: generate,
+    exhaustiveNeighbourhood: exhaustiveNeighbourhood,
     splitDomain: splitDomain,
     techniques: LABEL_TECHNIQUES,
     TLDS: TLDS,
