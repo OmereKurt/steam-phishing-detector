@@ -38,6 +38,7 @@ have something to measure against.
 | `edit_distance` | 40 | Damerau-Levenshtein ≤ 2 from an official domain — `steamcommnuity.com`, `stearnpowered.com` |
 | `homoglyph` | 35 | Same visual skeleton after confusable normalisation — Cyrillic `е`, `rn` for `m`, `0` for `o` |
 | `embedded_official` | 35 | A real Steam domain in someone else's hostname, label, path or query |
+| `official_tld_swap` | 30 | A registrable label Valve publishes, on a suffix Valve does not use — `steamgames.net`, `steamstatic.io`. Does not stack with `edit_distance` |
 | `punycode` | 30 | An `xn--` label, which may render as something else entirely |
 | `branding` | 15 | Steam branding in the page title or image alt text |
 | `risky_tld` | 10 | `.tk .ml .ga .cf .gq` — free registration, high abuse |

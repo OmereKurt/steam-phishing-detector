@@ -30,7 +30,7 @@ score(url, pageSignals) -> { score, verdict, reasons }
 No Chrome APIs, no DOM, no network. That is what lets it be run over a labelled
 corpus in Node instead of only inside a browser.
 
-Seven weighted signals accumulate, rather than a chain of ANDed conditions:
+Eight weighted signals accumulate, rather than a chain of ANDed conditions:
 
 | Signal | Weight | Catches |
 |---|---:|---|
