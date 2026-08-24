@@ -143,3 +143,8 @@ vite.config.ts.timestamp-*
 # rather than vendored.
 top-1m.csv
 top-1m.csv.zip
+
+# Live phishing feeds the live-eval runs against. Fetched, never vendored:
+# they are rebuilt continuously and contain live hostile URLs.
+online-valid.csv
+openphish-feed.txt

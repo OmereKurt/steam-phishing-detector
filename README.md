@@ -3,12 +3,17 @@
 [![CI](https://github.com/OmereKurt/steam-phishing-detector/actions/workflows/ci.yml/badge.svg)](https://github.com/OmereKurt/steam-phishing-detector/actions/workflows/ci.yml)
 
 A Chrome extension that scores Steam credential-phishing pages and warns before a
-password is typed — plus the corpus, the DNS survey and the million-domain
-benchmark that say how well it actually works.
+password is typed — plus the corpus, the DNS survey, the million-domain benchmark
+and the live-feed evaluation that say how well it actually works.
 
 **Scored against 1,000,000 real domains, it warns on 7 — one in 142,857.** Three of
 those seven are genuine Steam brand squats that belong in the list. Every number
 here is reproducible with a single npm command.
+
+**Scored against 73,250 live phishing URLs, it catches two of the seven aimed at**
+**Steam.** The hand-written corpus reports 92.1% recall; real attacker hostnames
+give 29%. That gap, and the two defects behind it, are written up in full below
+rather than left out.
 
 ![Block-level warning on a page whose hostname embeds steamcommunity.com](docs/demo.png)
 
@@ -61,7 +66,7 @@ Full reasoning, and the limitations, in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Measured performance
 
-Three measurements, because they answer different questions and have very
+Four measurements, because they answer different questions and have very
 different strengths.
 
 ### 1. False positives against a million real domains
@@ -163,6 +168,101 @@ invented hostnames — and 86 URLs is small. It is a regression suite, not evide
 about the wild. The extension has never been deployed to a user. Full limitations
 in [docs/DESIGN.md](docs/DESIGN.md#honest-limitations).
 
+### 4. Against live phishing feeds
+
+The corpus above is hand-written. This is the same scorer against hostnames
+attackers actually registered, from PhishTank's verified-online feed
+(73,250 URLs on 2026-08-24) and the OpenPhish community feed (300 URLs).
+
+```
+$ npm run live-eval -- online-valid.csv openphish-feed.txt
+
+  Recall on target="Steam" (13 entries)      warned on 1/13
+  Specificity across all 73,250 phishing URLs
+    warned  (>= 35): 2  (0.0027%)
+    blocked (>= 60): 0
+  OpenPhish community feed: 300 URLs, 0 warned.
+```
+
+Nothing in that pipeline fetches a URL. Every input is scored as a string.
+
+**Specificity is the good result.** Two warnings across 73,250 live phishing
+URLs, and both are Steam lookalikes — one of them, `svteamconmmunity[.]com`,
+PhishTank files under `Other`, so the scorer labelled it before the feed did.
+Zero blocks. Zero hits on 300 OpenPhish URLs. Phishing infrastructure aimed at
+Allegro, the IRS and Amazon is a far more adversarial negative set than Tranco's
+legitimate domains, and a Steam-specific scorer stays quiet on it.
+
+**Recall is the bad result, and it is worse than the corpus implies.** Start by
+discounting the label: 7 of those 13 are not Steam domain phishing at all. Four
+are ad-tracker and affiliate redirects, one is `www.google.com` with query
+parameters, one is a generic `.html` drop. PhishTank's `target` column is
+submitter-supplied and noisy. That leaves six genuine Steam-impersonation
+hostnames, plus the one mislabelled `Other`:
+
+| URL | Score | Why |
+|---|---:|---|
+| `login.steampowered[.]com[.]ru` | 45 | caught — embedded official domain |
+| `svteamconmmunity[.]com` | 40 | caught — distance 2 |
+| `steamcomunity[.]eu[.]cc` | 0 | **missed — suffix parsing** |
+| `steamcomnunnlty[.]com` | 0 | missed — distance 3 |
+| `steamcomunmitty[.]com` | 0 | missed — distance 3 |
+| `store-steampowereed[.]ru` | 0 | missed — combosquat plus a doubled letter, distance 7 |
+| `store.communitystudionsarts[.]shop` | 0 | missed — brand lure, no lookalike domain |
+
+**Two of seven.** The labelled corpus reports 92.1% recall; real hostnames give
+29%. Both numbers are honest and they measure different things — the corpus
+measures the shapes I thought of, this measures the shapes attackers chose. The
+gap between them is the most useful thing in this repository.
+
+
+## What the live feeds exposed
+
+Two defects, and the measured cost of fixing each. Both candidates were scored
+against the Tranco top million before either was considered, for the same reason
+as before: the cost of a change is a false positive rate, not an opinion.
+
+### Defect 1: the public-suffix stand-in drops the brand label
+
+`steamcomunity[.]eu[.]cc` scores zero. `registrableDomain` does not know
+`eu.cc` is a suffix people register under, so it parses the registrable domain
+as `eu.cc` and the brand label as `eu` — and `steamcomunity`, one edit from
+`steamcommunity`, is discarded as a subdomain before any signal runs. The
+20-entry `MULTI_PART_SUFFIXES` list is documented as a stand-in for the Public
+Suffix List; this is what that shortcut actually costs.
+
+Growing the list is endless. The alternative is to measure edit distance against
+every label in the hostname rather than only the registrable brand, which needs
+no suffix knowledge at all.
+
+**Measured: catches `steamcomunity[.]eu[.]cc`, promotes `login.steampowered[.]com[.]ru`**
+**from caution to block, costs 1 new false positive in the top million**
+(`starcommunity.com.au`, at caution). All 103 existing tests still pass.
+
+### Defect 2: real typosquats sit at distance 3
+
+`steamcomnunnlty[.]com` and `steamcomunmitty[.]com` are both exactly three edits
+from `steamcommunity`. `MAX_LOOKALIKE_DISTANCE` is 2, so both score zero. The
+threshold was tuned against a corpus whose typosquats I wrote, and I wrote
+plausible ones — attackers register uglier strings than that.
+
+**Measured: raising the threshold to 3 catches both, and costs 6 new false**
+**positives in the top million** — `telecommunity.com`, `stakecommunity.com`,
+`stintcommunity.com`, `sexycommunity.it`, `sexxcommunity.com`, `telapowered.com`.
+All are real businesses.
+
+### Neither is in the scorer
+
+The stated bar in this repository is that a signal trading one real false
+positive for one caught phish is not obviously worth having. Distance 3 trades
+six for two and is clearly out. Per-label distance trades one for one, which
+lands exactly on the bar rather than over it — and a false positive on a
+credential warning costs a user's trust in every later warning, so the tie does
+not break in favour of shipping.
+
+Both remain measurable with a one-line change and a benchmark run. That is the
+point of keeping the cost of an idea cheap to find out.
+
 ## One signal added, one rejected
 
 Closing the `steamgames.net` miss meant choosing between two candidate signals.
@@ -236,7 +336,9 @@ test/corpus.test.js         24 tests: corpus integrity and precision/recall floo
 test/permutations.test.js   24 tests for the generator
 data/lookalikes.json        Registered Steam lookalikes found by DNS, defanged
 data/benchmark.json         Every domain flagged in the million-domain run
+data/live-eval.json         Live-feed run: every Steam-labelled URL and every hit
 scripts/evaluate.js         Precision/recall/F1 across a threshold sweep
+scripts/live-eval.js        Recall and specificity against live phishing feeds
 scripts/discover.js         Generates permutations and resolves them (DNS only)
 scripts/benchmark.js        Scores a Tranco list end to end
 scripts/sync-extension.js   Copies the scorer into the extension; --check guards drift
@@ -262,6 +364,19 @@ The million-domain benchmark needs a list, which is not vendored here:
 curl -sSL -o top-1m.csv.zip https://tranco-list.eu/top-1m.csv.zip && unzip -o top-1m.csv.zip
 npm run benchmark -- top-1m.csv
 ```
+
+The live-feed evaluation needs two feeds, also not vendored. Both are rebuilt
+continuously, so the command is the reproducible artefact, not the number:
+
+```bash
+curl -sSL -o online-valid.csv https://data.phishtank.com/data/online-valid.csv
+curl -sSL -o openphish-feed.txt https://openphish.com/feed.txt
+npm run live-eval -- online-valid.csv openphish-feed.txt
+```
+
+Both files contain live phishing URLs. Nothing in this repository fetches them —
+they are scored as strings, and every URL printed or written to
+`data/live-eval.json` is defanged.
 
 Load the extension:
 

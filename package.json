@@ -16,6 +16,7 @@
     "sync:check": "node scripts/sync-extension.js --check",
     "demo": "node scripts/demo.js",
     "discover": "node scripts/discover.js",
-    "benchmark": "node scripts/benchmark.js"
+    "benchmark": "node scripts/benchmark.js",
+    "live-eval": "node scripts/live-eval.js"
   }
 }

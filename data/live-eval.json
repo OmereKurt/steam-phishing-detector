@@ -1,0 +1,108 @@
+{
+  "generated": "2026-08-24T14:07:16.176Z",
+  "note": "URLs are defanged. Nothing in this pipeline fetches them.",
+  "phishtank": {
+    "scored": 73250,
+    "steamLabelled": 13,
+    "steamWarned": 1,
+    "warned": 2,
+    "blocked": 0,
+    "firedOnNonSteam": [
+      {
+        "url": "hxxps://svteamconmmunity[.]com/gift/72503",
+        "target": "Other",
+        "score": 40
+      }
+    ],
+    "steamResults": [
+      {
+        "url": "hxxps://store[.]communitystudionsarts[.]shop/workshop/AWP-AncientHeritage/",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://steamcomunity[.]eu[.]cc/",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://login[.]steampowered[.]com[.]ru/",
+        "score": 45,
+        "verdict": "caution",
+        "signals": [
+          "embedded_official",
+          "login_keyword"
+        ]
+      },
+      {
+        "url": "hxxps://csbern[.]com/team/nxsaykra?from=6767676767",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://store-steampowereed[.]ru/",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://steamcomnunnlty[.]com/",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://steamcomunmitty[.]com/",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://bobablacksheep[.]gotrackier[.]com/click?campaign_id=1&amp;pub_id=2&amp;gclid=Cj0KCQjwwO20BhCJARIsAAnTIVSaCVZ1w2vUU8q6nmq3mmx7yMlsN2sd1uinjomIxdDYcYI5FNL54YcaAkKsEALw_wcB",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://ad[.]doubleclick[.]net/searchads/link/click?&amp;dc_eps=AHas8cAUaj9ehvwYAddYXZLVmoRZputDDvax_O6vNrJeWRvAa4dg66tnGGB9RLoVASOedHi1qBV8KNFL2ORl&amp;acs_info=ZmluYWxfdXJsOiAiaHR0cHM6Ly9tZXRhbWFzay5pby9zbmFwcy8iCg&amp;ds_dest_url=https%3A%2F%2Fbobablacksheep[.]gotrackier[.]com%2Fclick%3Fcampaign_id%3D1%26pub_id%3D2&amp;gclid=CjwKCAjwqMO0BhA8EiwAFTLgIN4ZsE62n7W2GVoes_LtrHtG-GRuRqpXeajS-k_Bg4pIUu9mKlPB4BoC7QIQAvD_BwE",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://bobablacksheep[.]gotrackier[.]com/click?campaign_id=1&amp;pub_id=2&amp;gclid=CjwKCAjwqMO0BhA8EiwAFTLgIN4ZsE62n7W2GVoes_LtrHtG-GRuRqpXeajS-k_Bg4pIUu9mKlPB4BoC7QIQAvD_BwE",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://trk[.]affapp[.]io/redirect?cid=65874fac980a33e1991ffa1d&amp;oid=65874e63980a33e1991ffa02&amp;bid=65874f96980a33e1991ffa1b&amp;pid=&amp;url=https://buff[.]market/&amp;redirect_url=https://buff[.]market/&amp;gclid=EAIaIQobChMI8aGY6vGmgwMVmKNaBR2V7Qy4EAAYASAAEgInD_D_BwE",
+        "score": 10,
+        "verdict": "silent",
+        "signals": [
+          "login_keyword"
+        ]
+      },
+      {
+        "url": "hxxps://www[.]google[.]com/?onboarding_creation_ts=1702982665611&amp;source_caller=ui&amp;shortlink=u95g39zq&amp;pid=my_media_source&amp;id=8&amp;url=https://cs[.]money/prime/&amp;gclid=EAIaIQobChMIvJOW4NGdgwMVo5NoCR30qAFkEAAYASAAEgIGqPD_BwE",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      },
+      {
+        "url": "hxxps://memonsecurities[.]com/wromi7g52lx8[.]html",
+        "score": 0,
+        "verdict": "silent",
+        "signals": []
+      }
+    ]
+  },
+  "openphish": {
+    "scored": 300,
+    "warned": 0,
+    "hits": []
+  }
+}
