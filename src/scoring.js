@@ -189,12 +189,15 @@
   const CONFUSABLE_CLASSES = {
     a: "аα4@",
     b: "6ь",
-    c: "сϲ",
+    // sigma is here because IDNA folds Greek lunate sigma into it during URL
+    // parsing, so the lunate form -- which is what actually resembles a c --
+    // never reaches this map. Matching the folded form is the only way to see it.
+    c: "сϲσ",
     d: "ԁ",
     e: "еε3",
     g: "ɡ 9",
     h: "һ",
-    i: "l1|іı!",
+    i: "l1|іı!ӏ",
     j: "ј",
     k: "к",
     m: "м",
@@ -235,6 +238,11 @@
    */
   function skeleton(input) {
     let s = String(input).toLowerCase();
+    // Fold confusables once before NFKD as well as after. NFKD rewrites some of
+    // the very characters CONFUSABLE_CLASSES names -- Greek lunate sigma, listed
+    // as a `c` confusable, decomposes to a plain sigma the map has never heard
+    // of -- so a single pass after normalisation silently loses them.
+    s = Array.from(s).map(ch => CONFUSABLE_MAP.get(ch) || ch).join("");
     s = s.normalize("NFKD").replace(/[̀-ͯ]/g, "");
     for (const [pattern, replacement] of MULTI_CHAR_CONFUSABLES) {
       s = s.replace(pattern, replacement);
@@ -244,6 +252,102 @@
       out += CONFUSABLE_MAP.get(ch) || ch;
     }
     return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Punycode decoding (RFC 3492)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Decode one punycode label back to Unicode.
+   *
+   * This exists because of an ordering problem that silently disabled the
+   * homoglyph signal for every real IDN. `new URL()` applies IDNA before
+   * anything here runs, so a hostname typed as Cyrillic reaches score() already
+   * normalised to `xn--`. skeleton() then compares the ASCII punycode string,
+   * which resembles nothing, and the homoglyph signal never fires. Only
+   * `punycode` fired, at weight 30 -- below the warn threshold -- so the entire
+   * IDN homograph class, the attack the signal was written for, scored silent.
+   *
+   * Decoding restores the label the victim actually saw, which is the only
+   * string a visual-confusability test has any business comparing.
+   *
+   * Implemented here rather than pulled in because the scorer ships into a
+   * content script and carries no dependencies. Returns null when the input is
+   * not decodable, so a malformed label degrades to "not a homoglyph" instead
+   * of throwing inside a page.
+   */
+  const PUNY = { base: 36, tmin: 1, tmax: 26, skew: 38, damp: 700, initialBias: 72, initialN: 128 };
+
+  function punyDigit(code) {
+    if (code >= 0x30 && code <= 0x39) return code - 0x30 + 26; // 0-9 -> 26..35
+    if (code >= 0x61 && code <= 0x7a) return code - 0x61;      // a-z -> 0..25
+    if (code >= 0x41 && code <= 0x5a) return code - 0x41;      // A-Z -> 0..25
+    return -1;
+  }
+
+  function punyAdapt(delta, numPoints, firstTime) {
+    let d = firstTime ? Math.floor(delta / PUNY.damp) : Math.floor(delta / 2);
+    d += Math.floor(d / numPoints);
+    let k = 0;
+    while (d > Math.floor(((PUNY.base - PUNY.tmin) * PUNY.tmax) / 2)) {
+      d = Math.floor(d / (PUNY.base - PUNY.tmin));
+      k += PUNY.base;
+    }
+    return k + Math.floor(((PUNY.base - PUNY.tmin + 1) * d) / (d + PUNY.skew));
+  }
+
+  function punycodeDecode(label) {
+    const input = String(label);
+    if (!/^xn--/i.test(input)) return null;
+    const encoded = input.slice(4);
+    if (!encoded) return null;
+
+    const delim = encoded.lastIndexOf("-");
+    const output = [];
+    if (delim > -1) {
+      for (const ch of encoded.slice(0, delim)) {
+        if (ch.charCodeAt(0) > 0x7f) return null;
+        output.push(ch.codePointAt(0));
+      }
+    }
+
+    let n = PUNY.initialN;
+    let i = 0;
+    let bias = PUNY.initialBias;
+
+    for (let idx = delim > -1 ? delim + 1 : 0; idx < encoded.length; ) {
+      const oldi = i;
+      let w = 1;
+      for (let k = PUNY.base; ; k += PUNY.base) {
+        if (idx >= encoded.length) return null;
+        const digit = punyDigit(encoded.charCodeAt(idx++));
+        if (digit < 0) return null;
+        i += digit * w;
+        const t = k <= bias ? PUNY.tmin : (k >= bias + PUNY.tmax ? PUNY.tmax : k - bias);
+        if (digit < t) break;
+        w *= PUNY.base - t;
+        if (!Number.isFinite(w) || i > 0x10ffff * 64) return null;
+      }
+      const out = output.length + 1;
+      bias = punyAdapt(i - oldi, out, oldi === 0);
+      n += Math.floor(i / out);
+      i %= out;
+      if (n > 0x10ffff) return null;
+      output.splice(i, 0, n);
+      i++;
+    }
+
+    try {
+      return String.fromCodePoint.apply(null, output);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /** The hostname as a reader saw it: every xn-- label decoded where possible. */
+  function displayHostname(hostname) {
+    return String(hostname).toLowerCase().split(".").map(l => punycodeDecode(l) || l).join(".");
   }
 
   // ---------------------------------------------------------------------------
@@ -488,7 +592,15 @@
       ));
     }
 
-    const homoglyph = homoglyphMatch(registrable);
+    // Run confusability against the hostname as it was *displayed*, not as IDNA
+    // left it. `new URL()` has already punycoded any non-Latin label by the time
+    // score() is called, and a skeleton comparison against `xn--stampowered-pkj`
+    // matches nothing -- which silently disabled this signal for the entire IDN
+    // homograph class it was written to catch. Decoding first restores the
+    // string the victim actually read. Falls back to the registrable domain, so
+    // ASCII homoglyphs (rn for m) behave exactly as before.
+    const displayRegistrable = registrableDomain(displayHostname(hostname));
+    const homoglyph = homoglyphMatch(displayRegistrable) || homoglyphMatch(registrable);
     if (homoglyph) {
       reasons.push(reason("homoglyph", WEIGHTS.HOMOGLYPH, "Renders identically to " + homoglyph + " after confusable normalisation"));
     }
@@ -547,6 +659,8 @@
     isOfficialHost: isOfficialHost,
     lookalikeDistance: lookalikeDistance,
     homoglyphMatch: homoglyphMatch,
+    punycodeDecode: punycodeDecode,
+    displayHostname: displayHostname,
     embeddedOfficial: embeddedOfficial,
     parseQuery: parseQuery,
     OFFICIAL_DOMAINS: OFFICIAL_DOMAINS,

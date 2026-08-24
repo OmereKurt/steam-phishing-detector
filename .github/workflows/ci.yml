@@ -21,6 +21,9 @@ jobs:
       - name: Verify the extension copy of the scorer is in sync
         run: npm run sync:check
 
+      - name: Verify generated detection content is in sync
+        run: npm run detections:check
+
       - name: Run unit and corpus tests
         run: npm test
 

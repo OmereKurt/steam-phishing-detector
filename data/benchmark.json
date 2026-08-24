@@ -5,7 +5,7 @@
     "behind a summary statistic. Domains are recorded as ranked, not defanged,",
     "because these are legitimate popular sites."
   ],
-  "generatedAt": "2026-08-22",
+  "generatedAt": "2026-08-24",
   "listFile": "top-1m.csv",
   "domainsScored": 1000000,
   "flaggedAtWarn": 7,
@@ -14,7 +14,7 @@
   "falsePositiveRateBlock": 0.000001,
   "flagged": [
     {
-      "rank": 225664,
+      "rank": 226368,
       "domain": "wsteamcommunity.com",
       "score": 75,
       "verdict": "block",
@@ -24,7 +24,7 @@
       ]
     },
     {
-      "rank": 327504,
+      "rank": 333524,
       "domain": "steamcommunity.rip",
       "score": 40,
       "verdict": "caution",
@@ -33,7 +33,7 @@
       ]
     },
     {
-      "rank": 471601,
+      "rank": 481666,
       "domain": "steamcommunity.tips",
       "score": 40,
       "verdict": "caution",
@@ -42,7 +42,7 @@
       ]
     },
     {
-      "rank": 526087,
+      "rank": 527900,
       "domain": "steampoweredfamily.com",
       "score": 35,
       "verdict": "caution",
@@ -51,7 +51,7 @@
       ]
     },
     {
-      "rank": 774364,
+      "rank": 775355,
       "domain": "cukong88login.xn--6frz82g",
       "score": 40,
       "verdict": "caution",
@@ -61,8 +61,8 @@
       ]
     },
     {
-      "rank": 957047,
-      "domain": "stampcommunity.org",
+      "rank": 963049,
+      "domain": "sealcommunity.org",
       "score": 40,
       "verdict": "caution",
       "reasons": [
@@ -70,8 +70,8 @@
       ]
     },
     {
-      "rank": 977362,
-      "domain": "sealcommunity.org",
+      "rank": 972657,
+      "domain": "stampcommunity.org",
       "score": 40,
       "verdict": "caution",
       "reasons": [

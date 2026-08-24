@@ -347,3 +347,63 @@ test("official label on an unofficial suffix", async t => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+test("punycode decoding and IDN homographs", async t => {
+  await t.test("decodes a punycode label back to what was displayed", () => {
+    assert.strictEqual(s.punycodeDecode("xn--stampowered-pkj"), "stеampowered");
+    assert.strictEqual(s.punycodeDecode("xn--bcher-kva"), "bücher");
+  });
+
+  await t.test("round-trips against the URL parser as an oracle", () => {
+    // The URL parser encodes Unicode to punycode; decoding must return the
+    // original. Non-Latin scripts included so this is not only a Cyrillic test.
+    for (const host of ["stеampowered.com", "ѕteamcommunity.com", "مثال.com", "日本語.jp"]) {
+      const encoded = new URL("https://" + host + "/").hostname;
+      assert.strictEqual(s.displayHostname(encoded), host.toLowerCase(), host);
+    }
+  });
+
+  await t.test("returns null rather than throwing on input that is not punycode", () => {
+    for (const bad of ["notpuny", "xn--", "xn--!!!!", "", "xn--ÿ"]) {
+      assert.strictEqual(s.punycodeDecode(bad), null, JSON.stringify(bad));
+    }
+  });
+
+  await t.test("a Cyrillic lookalike fires homoglyph, not merely punycode", () => {
+    // Regression: new URL() punycodes the hostname before score() runs, so the
+    // skeleton comparison used to run against `xn--stampowered-pkj` and match
+    // nothing. Only `punycode` fired, at 30, below the warn threshold -- so the
+    // whole IDN homograph class scored silent.
+    const r = s.score("https://stеampowered.com/");
+    const fired = r.reasons.map(x => x.id);
+    assert.ok(fired.includes("homoglyph"), "expected homoglyph, got " + fired.join(","));
+    assert.ok(r.score >= s.BANDS.CAUTION, "expected at least a caution, got " + r.score);
+  });
+
+  await t.test("every generated IDN homograph of a login domain warns", () => {
+    const permutations = require("../src/permutations.js");
+    for (const target of s.IMPERSONATION_TARGETS) {
+      for (const [host, technique] of permutations.generate(target, {})) {
+        if (technique !== "homoglyph-unicode") continue;
+        const r = s.score("https://" + host + "/");
+        assert.ok(r.score >= s.BANDS.CAUTION, host + " scored " + r.score);
+      }
+    }
+  });
+
+  await t.test("confusables are folded before NFKD can rewrite them", () => {
+    // Greek lunate sigma is listed as a `c` confusable, but NFKD decomposes it
+    // to a plain sigma first, so a single post-normalisation pass loses it.
+    assert.strictEqual(s.skeleton("steamϲommunity"), s.skeleton("steamcommunity"));
+  });
+
+  await t.test("plain ASCII homoglyphs still behave as before", () => {
+    assert.ok(ids("https://stearnpowered.com/").includes("homoglyph"));
+  });
+
+  await t.test("a legitimate IDN that is not a Steam lookalike stays silent", () => {
+    const r = s.score("https://日本語.jp/");
+    assert.ok(!r.reasons.map(x => x.id).includes("homoglyph"));
+  });
+});

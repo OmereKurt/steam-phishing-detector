@@ -263,6 +263,75 @@ not break in favour of shipping.
 Both remain measurable with a one-line change and a benchmark run. That is the
 point of keeping the cost of an idea cheap to find out.
 
+## The signal that never fired
+
+Building the SIEM rules surfaced a defect worse than either of the two above,
+because it was in the signal the front page advertises.
+
+`new URL()` applies IDNA before `score()` ever runs. A hostname typed with a
+Cyrillic `е` arrives already normalised to `xn--stampowered-pkj.com`, so the
+skeleton comparison ran against the punycode string, matched nothing, and the
+homoglyph signal did not fire. Only `punycode` fired, at weight 30 — five points
+under the warn threshold.
+
+So every IDN homograph of a Steam login domain scored **silent**:
+
+```
+before:  ѕteampowered.com      30  silent   [punycode]
+after:   ѕteampowered.com      65  block    [homoglyph, punycode]
+```
+
+Across the 35 IDN homographs `src/permutations.js` generates, the scorer warned
+on **0 of 35**. The tests passed throughout, because every homoglyph test used an
+ASCII confusable — `rn` for `m` — and those survive URL parsing untouched. The
+one class the signal existed for was the one class never tested.
+
+The fix decodes the label back to what the victim saw before comparing
+skeletons, which needs a punycode decoder; RFC 3492 is about eighty lines and
+the scorer carries no dependencies, so it is implemented in `src/scoring.js` and
+round-trip tested against the URL parser as an oracle. A second, smaller bug
+turned up underneath: `skeleton()` ran NFKD normalisation *before* the
+confusable map, and NFKD rewrites some of the very characters the map names —
+Greek lunate sigma, listed as a `c` confusable, decomposes to a plain sigma the
+map has never heard of.
+
+**Measured: 35 of 35 now block, and the million-domain benchmark is**
+**byte-identical.** Zero false positives. This one was not a trade-off; it was a
+bug, and the reason it survived two rewrites is that the corpus tested the
+shapes I had thought of.
+
+## Detection content
+
+The scorer is a pure function from a URL to a scored verdict with named signals.
+That is a detection rule that happens to run in a browser on one tab. The same
+logic over proxy logs is an enterprise detection, so `detections/` ships it as
+one — Sigma, plus Splunk SPL, Sentinel KQL and Cortex XQL conversions, tagged
+**T1566.002** and **T1656**.
+
+The translation is lossy, and the losses are measured rather than asserted:
+
+```
+$ npm test
+
+  phishing URLs the scorer catches : 35
+  phishing URLs the rule catches   : 27   (77.1%)
+  fires the scorer would not make  : 0
+  benign URLs fired on             : 0
+```
+
+Edit distance is not expressible in a query language, so the distance ≤ 2
+neighbourhood is **materialised** into a 631-host lookup by the typosquat
+generator that was already in the repository — each candidate filtered through
+the scorer first, so no rule is ever broader than the product. Page branding and
+the credential-field gate cannot cross at all: neither exists in a proxy log.
+
+Path embedding is excluded on purpose. It adds 2 detections and 6 false
+positives — `web.archive.org`, `virustotal.com`, `urlscan.io` and
+`translate.google.com` all carry Steam URLs in paths legitimately, and the
+extension only stays quiet on them because of the credential gate. Full
+reasoning, deployment notes and the honest limits in
+[detections/README.md](detections/README.md).
+
 ## One signal added, one rejected
 
 Closing the `steamgames.net` miss meant choosing between two candidate signals.
@@ -331,7 +400,8 @@ chrome-extension/           Loadable MV3 extension
   background.js               Service worker; mirrors the verdict onto the toolbar badge
   popup.html / popup.js       Shows the current tab's verdict and the reasons for it
 test/corpus.json            86 labelled URLs, all defanged
-test/scoring.test.js        55 unit tests, one per signal and edge case
+test/scoring.test.js        64 unit tests, one per signal and edge case
+test/detections.test.js     20 tests: rule logic, artefact drift, SIEM coverage
 test/corpus.test.js         24 tests: corpus integrity and precision/recall floors
 test/permutations.test.js   24 tests for the generator
 data/lookalikes.json        Registered Steam lookalikes found by DNS, defanged
@@ -339,6 +409,9 @@ data/benchmark.json         Every domain flagged in the million-domain run
 data/live-eval.json         Live-feed run: every Steam-labelled URL and every hit
 scripts/evaluate.js         Precision/recall/F1 across a threshold sweep
 scripts/live-eval.js        Recall and specificity against live phishing feeds
+scripts/build-detections.js Generates detections/ from src/; --check guards drift
+src/detection-rule.js       The SIEM-expressible subset of the scorer, testable
+detections/                 Sigma, SPL, KQL, XQL and the materialised lookup
 scripts/discover.js         Generates permutations and resolves them (DNS only)
 scripts/benchmark.js        Scores a Tranco list end to end
 scripts/sync-extension.js   Copies the scorer into the extension; --check guards drift
@@ -352,10 +425,12 @@ docs/demo/login/            Inert mock Steam sign-in page for exercising the ban
 Requires Node 20+. There are no dependencies to install.
 
 ```bash
-npm test          # 103 tests: unit coverage plus corpus regression floors
+npm test          # 132 tests: unit coverage, corpus floors, detection coverage
 npm run eval      # precision/recall on the labelled corpus
 npm run discover  # generate typosquats, resolve them against DNS
 npm run demo      # serve the demo phishing page
+npm run build:detections   # regenerate detections/ from src/
+npm run detections:check   # fail if the generated rules have drifted
 ```
 
 The million-domain benchmark needs a list, which is not vendored here:

@@ -17,6 +17,8 @@
     "demo": "node scripts/demo.js",
     "discover": "node scripts/discover.js",
     "benchmark": "node scripts/benchmark.js",
-    "live-eval": "node scripts/live-eval.js"
+    "live-eval": "node scripts/live-eval.js",
+    "build:detections": "node scripts/build-detections.js",
+    "detections:check": "node scripts/build-detections.js --check"
   }
 }
