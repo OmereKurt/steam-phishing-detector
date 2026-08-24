@@ -35,15 +35,54 @@ head -3 rules/web/proxy_generic/proxy_steam_phishing_domain.yml
 
 The first line should now be `title: Potential Steam Phishing Domain`.
 
-## 3. Run their tests
+## 3. Set up Python
 
-There is no `tests/requirements.txt` in the repository. The two test scripts
-need `pyyaml` and `colorama`; `sigma check` needs the two Sigma packages.
-Homebrew Python refuses a bare `pip install` under PEP 668, so use a venv:
+**The interpreter matters.** On macOS a bare `python3` is the CommandLineTools
+build, currently 3.9. `sigma-cli` requires 3.10 or newer, and under 3.9 pip
+silently falls back to sigma-cli 1.0.6, which then cannot parse SigmaHQ's
+current validation config at all -- it fails with "Attempting to remove not
+existing validator 'sigmahq_fieldname_cast'". Pin a newer interpreter:
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -q pyyaml colorama sigma-cli pySigma-validators-sigmahq
+rm -rf .venv && /opt/homebrew/bin/python3.13 -m venv .venv
 ```
+
+```bash
+.venv/bin/python -m pip install -q --upgrade pip
+```
+
+The bundled pip is 21.2.4 and resolves dependencies poorly; upgrading first is
+what makes the next line pick current versions.
+
+```bash
+.venv/bin/pip install pyyaml colorama sigma-cli pySigma-validators-sigmahq
+```
+
+Note the missing `-q`: let it print, so a resolution failure is visible rather
+than swallowed. Then confirm you got the current release, not the 3.9 fallback:
+
+```bash
+.venv/bin/python --version && .venv/bin/sigma version
+```
+
+Expect Python 3.13.x and sigma-cli 3.1.0 or newer.
+
+```bash
+echo ".venv/" >> .git/info/exclude
+```
+
+## 4. Run their tests
+
+Start with the fast one. It checks only your rule and returns in under a second:
+
+```bash
+.venv/bin/sigma check --fail-on-error --fail-on-issues --validation-config tests/sigma_cli_conf.yml rules/web/proxy_generic/proxy_steam_phishing_domain.yml
+```
+
+Then the two full suites. **These validate all 3,761 rules in the repository,
+not just yours, so they take a while and print very little while they work.**
+Roughly 17 seconds and 44 seconds on an M-series Mac, longer on the first run.
+They are not hung -- do not interrupt them:
 
 ```bash
 .venv/bin/python tests/test_logsource.py
@@ -53,24 +92,16 @@ python3 -m venv .venv && .venv/bin/pip install -q pyyaml colorama sigma-cli pySi
 .venv/bin/python tests/test_rules.py
 ```
 
-```bash
-.venv/bin/sigma check --fail-on-error --fail-on-issues --validation-config tests/sigma_cli_conf.yml rules/web/proxy_generic/proxy_steam_phishing_domain.yml
-```
+Both end with `OK`. Run them one at a time rather than pasting both, so you can
+see which produced which result.
 
-All three pass. Add `.venv/` to your local excludes so it never lands in the
-PR:
-
-```bash
-echo ".venv/" >> .git/info/exclude
-```
-
-## 4. PR title
+## 5. PR title
 
 Merged rule PRs use a `new:` / `fix:` prefix in lower case. Match it:
 
     new: potential steam phishing domain rule
 
-## 5. PR body
+## 6. PR body
 
 Adds a `proxy` rule for Steam credential phishing, which uses a recognisable
 hostname shape: an official Steam domain, or a Steam brand label joined by a
@@ -111,7 +142,7 @@ that would otherwise swallow it.
 Derivation, corpus and measurement scripts:
 https://github.com/OmereKurt/steam-phishing-detector
 
-## 6. Conventions this rule already satisfies
+## 7. Conventions this rule already satisfies
 
 Checked against `sigma-specification/sigmahq/`:
 
@@ -124,7 +155,7 @@ Checked against `sigma-specification/sigmahq/`:
 - No single-item multi-line lists
 - `falsepositives` are specific, not `None` / `Pentest` / `Red Team`
 
-## 7. Expect review comments
+## 8. Expect review comments
 
 Likely questions, and the honest answers:
 
