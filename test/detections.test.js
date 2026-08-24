@@ -159,3 +159,52 @@ test("coverage against the labelled corpus", async t => {
     assert.strictEqual(falsePositives, 0, falsePositives + " benign URLs fired");
   });
 });
+
+// ---------------------------------------------------------------------------
+test("SigmaHQ candidate rule", async t => {
+  const yml = read("sigmahq/proxy_steam_phishing_domain.yml");
+
+  await t.test("carries no materialised lookup", () => {
+    // The whole point of this rule: it is a shape, not an enumeration, so
+    // nothing in it goes stale once it is merged into someone else's repo.
+    const inlined = [...rule.LOOKALIKES.keys()].filter(h => yml.includes(h)).length;
+    assert.ok(inlined < 5, "candidate inlines " + inlined + " lookalike hosts");
+    assert.ok(yml.split("\n").length < 100, "candidate should stay compact");
+  });
+
+  await t.test("follows SigmaHQ conventions", () => {
+    assert.match(yml, /^status: experimental$/m, "new rules start at experimental");
+    assert.match(yml, /^date: \d{4}-\d{2}-\d{2}$/m, "ISO date");
+    assert.match(yml, /^    condition: 1 of selection_\* and not 1 of filter_main_\*$/m);
+    assert.ok(!yml.includes("attack.t1656"), "t1656 fails sigma check and is unused upstream");
+    assert.ok(yml.includes("attack.initial-access"), "t1566.002 needs its tactic");
+    // Four-space indentation, not two.
+    assert.ok(!/^  [a-z_]+:$/m.test(yml.split("detection:")[1] || ""), "expected 4-space indent");
+  });
+
+  await t.test("fires on the shapes it claims to catch", () => {
+    for (const host of ["steamcommunity.com.trade-skins.tk", "steamcommunity-login.tk",
+                        "login.steampowered.com.ru", "wsteamcommunity.com"]) {
+      assert.strictEqual(rule.evaluateCompact(host), true, host);
+    }
+  });
+
+  await t.test("stays silent on official Steam and on known lookalike-adjacent sites", () => {
+    for (const host of ["steamcommunity.com", "store.steampowered.com",
+                        // A fan wiki and a STEM education site. Both are why the
+                        // brand match is anchored to a hyphen rather than bare.
+                        "steamcommunity.fandom.com", "steampoweredfamily.com",
+                        "example.com", "github.com"]) {
+      assert.strictEqual(rule.evaluateCompact(host), false, host);
+    }
+  });
+
+  await t.test("never fires where the scorer stays quiet", () => {
+    let falsePositives = 0;
+    for (const entry of loadCorpus()) {
+      if (entry.label === "phishing") continue;
+      if (rule.evaluateCompact(new URL(entry.url).hostname)) falsePositives++;
+    }
+    assert.strictEqual(falsePositives, 0, falsePositives + " benign corpus URLs fired");
+  });
+});

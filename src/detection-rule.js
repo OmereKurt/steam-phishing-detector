@@ -123,6 +123,30 @@
   }
 
   /**
+   * The compact rule proposed to SigmaHQ, as a predicate.
+   *
+   * detections/sigmahq/proxy_steam_phishing_domain.yml is generated from the
+   * same constants this reads, so testing this tests the rule that would be
+   * submitted. It carries no lookup at all: an official Steam domain, or a brand
+   * label bolted to a hyphen, inside a host Valve does not control.
+   *
+   * Mirrors the emitted condition exactly:
+   *   1 of selection_* and not 1 of filter_main_*
+   */
+  function evaluateCompact(host) {
+    const h = String(host || "").toLowerCase().replace(/\.$/, "");
+    if (!h) return false;
+
+    const filtered = scoring.OFFICIAL_DOMAINS.some(d => h === d || h.endsWith("." + d));
+    if (filtered) return false;
+
+    if (scoring.OFFICIAL_DOMAINS.some(d => h.includes(d))) return true;
+    return scoring.OFFICIAL_DOMAINS
+      .map(d => scoring.brandLabel(d))
+      .some(label => h.includes(label + "-") || h.includes("-" + label));
+  }
+
+  /**
    * How much of the extension's behaviour survives the translation.
    *
    * Runs both the rule and the full scorer over the labelled corpus and returns
@@ -159,5 +183,5 @@
     return { total, rule, scorer, both, scorerOnly, ruleOnly, missed, unparseable };
   }
 
-  return { materialiseLookalikes, evaluate, coverageAgainstCorpus, LOOKALIKES, WARN };
+  return { materialiseLookalikes, evaluate, evaluateCompact, coverageAgainstCorpus, LOOKALIKES, WARN };
 });

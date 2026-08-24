@@ -174,6 +174,82 @@ level: medium
 `;
 }
 
+
+/**
+ * The upstream-candidate rule.
+ *
+ * detections/steam-phishing-domain.sigma.yml carries a 2,101-entry lookup and is
+ * the right shape for this repository, where the list is regenerated on every
+ * push. It is the wrong shape for SigmaHQ: it would be the second-largest rule
+ * in their tree, 93% of its entries have never resolved in DNS, and once merged
+ * there is no regeneration path, so it would rot.
+ *
+ * This is the part that survives without a list. An official Steam domain, or a
+ * Steam brand label bolted to a hyphen, appearing in a hostname Valve does not
+ * control is a shape rather than an enumeration -- there is nothing to keep up
+ * to date, and nothing to go stale.
+ *
+ * Measured before writing it. Against the Tranco top million it produces a
+ * single hit, wsteamcommunity.com, which is a genuine brand squat rather than a
+ * false positive. Adding a bare brand-label match would catch six more corpus
+ * URLs and cost steampoweredfamily.com, a STEM education site, plus
+ * steamcommunity.fandom.com, a fan wiki -- so the match is anchored to a hyphen,
+ * which is how the squats in the corpus are actually built.
+ *
+ * Selection and filter names follow SigmaHQ's own idiom rather than this
+ * repository's, because this file is written to be proposed upstream verbatim.
+ */
+function sigmaHqCandidate() {
+  const brandHyphens = [];
+  for (const label of officialLabels) {
+    brandHyphens.push(label + "-");
+    brandHyphens.push("-" + label);
+  }
+  brandHyphens.sort();
+
+  return `# ${GENERATED}
+# Candidate for submission to SigmaHQ. Compact by design: no materialised
+# lookup, nothing that needs regenerating after it is merged.
+title: Potential Steam Phishing Domain
+id: a96c5746-7827-4534-bc31-e2edfe8d2a23
+status: experimental
+description: |
+    Detects web requests to a hostname that carries an official Steam domain, or
+    a Steam brand label joined by a hyphen, inside a domain Valve does not
+    control. Credential phishing against Steam commonly uses this shape, placing
+    the real domain in a subdomain or label of an attacker-owned host so that a
+    reader skimming the address bar sees the brand first.
+references:
+    - https://github.com/OmereKurt/steam-phishing-detector
+author: Omer Kurt
+date: 2026-08-24
+tags:
+    - attack.credential-access
+    - attack.initial-access
+    - attack.t1566.002
+logsource:
+    category: proxy
+detection:
+    selection_embedded_domain:
+        cs-host|contains:
+${yamlList(officialDomains, "            ")}
+    selection_hyphenated_brand:
+        cs-host|contains:
+${yamlList(brandHyphens, "            ")}
+    filter_main_official_domain:
+        cs-host:
+${yamlList(officialDomains, "            ")}
+    filter_main_official_subdomain:
+        cs-host|endswith:
+${yamlList(officialDomains.map(d => "." + d), "            ")}
+    condition: 1 of selection_* and not 1 of filter_main_*
+falsepositives:
+    - Steam brand-protection domains that Valve registers defensively and redirects
+    - Security tooling and URL scanners that resolve candidate phishing hostnames
+level: high
+`;
+}
+
 // ---------------------------------------------------------------------------
 // SIEM dialects
 // ---------------------------------------------------------------------------
@@ -284,6 +360,7 @@ function lookupCsv() {
 const artefacts = {
   "steam-phishing-domain.sigma.yml": sigmaHighConfidence(),
   "steam-phishing-domain-low-confidence.sigma.yml": sigmaLowConfidence(),
+  "sigmahq/proxy_steam_phishing_domain.yml": sigmaHqCandidate(),
   "splunk/steam-phishing-domain.spl": splunk(),
   "sentinel/steam-phishing-domain.kql": sentinel(),
   "cortex-xsiam/steam-phishing-domain.xql": xql(),

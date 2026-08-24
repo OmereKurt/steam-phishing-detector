@@ -13,6 +13,7 @@ drifts from the source.
 | `sentinel/steam-phishing-domain.kql` | Microsoft Sentinel KQL |
 | `cortex-xsiam/steam-phishing-domain.xql` | Cortex XSIAM / XDR XQL |
 | `lookups/steam-lookalike-domains.csv` | 2,101 hosts, the materialised neighbourhood |
+| `sigmahq/proxy_steam_phishing_domain.yml` | Compact rule, written for submission upstream |
 
 ATT&CK: **T1566.002** (Phishing: Spearphishing Link), **T1656** (Impersonation).
 
@@ -132,6 +133,41 @@ The middle version works and **Sigma cannot express it** — there is no operato
 that splits a hostname into labels. Shipping the exact form in KQL and XQL but
 not Sigma would leave the four artefacts disagreeing about what the rule is, so
 none of them carry it.
+
+## The upstream candidate
+
+`sigmahq/proxy_steam_phishing_domain.yml` is a separate, deliberately smaller
+rule written to be proposed to [SigmaHQ](https://github.com/SigmaHQ/sigma).
+
+The high-confidence rule above is right for *this* repository, where the lookup
+is regenerated on every push. It is wrong for theirs: at 2,157 lines it would be
+the second-largest rule in their tree, **93% of its 2,101 entries have never
+resolved in DNS**, and once merged there is no regeneration path, so it would
+rot in place.
+
+The candidate keeps only the part that survives without a list — an official
+Steam domain, or a brand label bolted to a hyphen, inside a host Valve does not
+control. That is a shape rather than an enumeration: nothing to maintain,
+nothing to go stale.
+
+Measured before it was written, and again from the emitted YAML afterwards:
+
+| Set | Size | Hits |
+|---|---:|---|
+| Tranco top sites | 1,000,000 | **1** — `wsteamcommunity.com`, a genuine squat |
+| PhishTank verified-online | 73,250 | **1** — `login.steampowered[.]com[.]ru`, labelled Steam |
+| Labelled corpus | 86 | 8 true positives, **0** false positives |
+
+Anchoring the brand match to a hyphen is what keeps that clean. Matching a bare
+brand label catches six more corpus URLs and costs `steampoweredfamily.com`, a
+STEM education site, and `steamcommunity.fandom.com`, a fan wiki — neither of
+which the extension warns on either.
+
+Conformance was checked by cloning SigmaHQ, dropping the rule into
+`rules/web/proxy_generic/`, and running their own tooling rather than reading the
+specification: `sigma check --fail-on-error --fail-on-issues` with their
+validation config, plus `tests/test_logsource.py` and `tests/test_rules.py`. All
+three pass with zero errors and zero issues.
 
 ## Deploying
 
