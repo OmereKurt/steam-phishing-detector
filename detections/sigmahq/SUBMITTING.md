@@ -31,7 +31,9 @@ All three pass as of this writing.
 
 ## 4. PR title
 
-    Add proxy rule for Steam credential phishing domains
+Merged rule PRs use a `new:` / `fix:` prefix in lower case. Match it:
+
+    new: potential steam phishing domain rule
 
 ## 5. PR body
 
@@ -74,15 +76,32 @@ that would otherwise swallow it.
 Derivation, corpus and measurement scripts:
 https://github.com/OmereKurt/steam-phishing-detector
 
-## 6. Expect review comments
+## 6. Conventions this rule already satisfies
+
+Checked against `sigma-specification/sigmahq/`:
+
+- Title casing, and the title keyword matches the level (`Potential` -> `medium`)
+- `description` starts with "Detects", multi-line via `|`
+- `status: experimental` -- required for all newly created rules
+- ISO `date`, four-space indentation
+- `filter_main_*` naming, and the `1 of selection_* and not 1 of filter_main_*` idiom
+- GitHub reference is a commit permalink, not a branch link
+- No single-item multi-line lists
+- `falsepositives` are specific, not `None` / `Pentest` / `Red Team`
+
+## 7. Expect review comments
 
 Likely questions, and the honest answers:
 
 - *"Why `contains` rather than `endswith` for the embedded-domain selection?"*
   Because the shape is the official domain appearing anywhere in the host, not
   at the end. `steamcommunity.com.trade-skins.tk` has it in the middle.
-- *"Level high?"* Defensible given 1 hit in a million legitimate domains, but
-  accept `medium` without arguing if a maintainer prefers it.
+- *"Level?"* Already set to `medium`, deliberately. Reviewers push back on high
+  levels routinely -- in PR #6190 a maintainer wrote "This cannot be critical
+  just by the nature of the standalone log. I suggest you reduce this to
+  medium" four separate times. SigmaHQ's title convention also pairs the
+  keyword "Potential" with `medium` and "Suspicious" with `high`, so the title
+  and level have to move together if this ever changes.
 - *"Add more brands?"* Say no. A Valve-specific rule is reviewable; a
   multi-brand one becomes an unmaintainable list, which is exactly the version
   that was left out.

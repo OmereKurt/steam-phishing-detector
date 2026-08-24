@@ -220,7 +220,7 @@ description: |
     the real domain in a subdomain or label of an attacker-owned host so that a
     reader skimming the address bar sees the brand first.
 references:
-    - https://github.com/OmereKurt/steam-phishing-detector
+    - https://github.com/OmereKurt/steam-phishing-detector/blob/be89abe8062f7a5f6394114a592b8ca794d11286/docs/DESIGN.md
 author: Omer Kurt
 date: 2026-08-24
 tags:
@@ -246,7 +246,7 @@ ${yamlList(officialDomains.map(d => "." + d), "            ")}
 falsepositives:
     - Steam brand-protection domains that Valve registers defensively and redirects
     - Security tooling and URL scanners that resolve candidate phishing hostnames
-level: high
+level: medium
 `;
 }
 
